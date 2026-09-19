@@ -171,7 +171,7 @@ fn formats_empty_state_loop_headers_as_headerless_blocks() {
 
 #[test]
 fn formats_metaprogramming_without_rewriting_captured_tokens() {
-	let source = "const   func make(xs:#[meta.Tokens]):meta.Tokens=\\(func f(...$(xs,)):int=1)\n$[decorate( 1 )]struct S(x:int)\n$(make(#[\\(a:int),\\(b:int)]))";
+	let source = "const   func make(xs:#[meta.Tokens]):meta.Tokens=\\(func f(...$(xs,)):int=1)\n@extend(decorate( 1 )) struct S(x:int)\n$(make(#[\\(a:int),\\(b:int)]))";
 	let formatted = format(source, "metaprogramming.hoo").expect("metaprogramming source formats");
 	parse_clean(&formatted, Path::new("metaprogramming.hoo"));
 	assert_eq!(

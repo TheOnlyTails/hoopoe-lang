@@ -230,8 +230,8 @@ fn token_splice_separators_are_single_final_tokens() {
 fn declaration_expansions_and_stacked_attachments_parse() {
 	let members = module_ok(
 		"$(make_answer(42))\n\
-		 $[outer()]\n\
-		 $[inner(flag = true)]\n\
+		 @outer()\n\
+		 @inner(flag = true)\n\
 		 struct Point(x: int)",
 	);
 	assert!(matches!(members[0], Declaration::Expansion(_)));
@@ -240,6 +240,48 @@ fn declaration_expansions_and_stacked_attachments_parse() {
 	};
 	assert_eq!(macros.len(), 2);
 	assert!(matches!(target.as_ref(), Declaration::Struct { name, .. } if name.0 == "Point"));
+}
+
+#[test]
+fn metadata_attributes_attach_to_the_following_syntax_node() {
+	let parsed = parse_module(
+		"struct User(@serialize.convert_case = \"camelCase\" user_name: string)",
+		"test.hoo",
+	);
+	assert!(
+		parsed.diagnostics.is_empty(),
+		"unexpected diagnostics: {:?}",
+		parsed.diagnostics
+	);
+	let [attribute] = parsed.tree.attributes.as_slice() else {
+		panic!("expected one metadata attribute");
+	};
+	assert_eq!(attribute.namespace.0, "serialize");
+	assert_eq!(attribute.option.0, "convert_case");
+	assert!(matches!(attribute.value.kind, ExprKind::String(_)));
+	assert_eq!(
+		&"struct User(@serialize.convert_case = \"camelCase\" user_name: string)"
+			[attribute.target.start..attribute.target.end],
+		"user_name: string"
+	);
+}
+
+#[test]
+fn declaration_metadata_targets_the_declaration_beneath_attached_macros() {
+	let source = "@serialize.enabled = true @serialize() struct User(name: string)";
+	let parsed = parse_module(source, "test.hoo");
+	assert!(
+		parsed.diagnostics.is_empty(),
+		"unexpected diagnostics: {:?}",
+		parsed.diagnostics
+	);
+	let [attribute] = parsed.tree.attributes.as_slice() else {
+		panic!("expected one metadata attribute");
+	};
+	assert_eq!(
+		&source[attribute.target.start..attribute.target.end],
+		"struct User(name: string)"
+	);
 }
 
 #[test]

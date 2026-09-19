@@ -8,7 +8,7 @@ use hoopoe_ast::{
 	OriginId, Span, Spanned, SyntaxContext,
 	decl::{
 		Declaration, FuncDeclaration, FuncParam, ImplMember, ImportRoot, Module, StructField,
-		StructImpl,
+		StructImpl, SyntaxAttribute,
 	},
 	expr::{
 		CallArg, ClosureParam, Expr, ExprKind, ListItem, MapEntry, Pattern, RangeKind, Statement,
@@ -24,6 +24,7 @@ const STEP_LIMIT: u64 = 100_000;
 const VALUE_LIMIT: u64 = 100_000;
 const CALL_DEPTH_LIMIT: u32 = 24;
 const OUTPUT_TOKEN_LIMIT: usize = 100_000;
+const META_MODULE_OWNER: &str = "std::meta";
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ExpandedModule {
@@ -289,7 +290,7 @@ enum Value {
 		body: Box<Expr>,
 		env: Env,
 	},
-	Tokens(Vec<Spanned<Token>>),
+	Tokens(TokenValue),
 	Name(EcoString, Span),
 	Record {
 		owner: Option<EcoString>,
@@ -305,6 +306,19 @@ enum Value {
 	Break(Option<Box<Value>>, Option<EcoString>),
 	Continue(Vec<(EcoString, Value)>, Option<EcoString>),
 	Void,
+}
+
+#[derive(Clone, Debug)]
+struct TokenValue {
+	items: Vec<Spanned<Token>>,
+	preserve_origins: bool,
+}
+
+impl PartialEq for TokenValue {
+	fn eq(&self, other: &Self) -> bool {
+		// Origin handling is evaluator state, not part of a Hoopoe token value.
+		self.items == other.items
+	}
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -400,6 +414,10 @@ struct Evaluator<'a> {
 	current_definition: u64,
 	origins: BTreeMap<OriginId, ExpansionOrigin>,
 	deferred_diagnostics: Vec<Diagnostic>,
+	attribute_options: BTreeMap<EcoString, BTreeMap<EcoString, Spanned<Type>>>,
+	attribute_aliases: BTreeMap<EcoString, EcoString>,
+	attribute_import_diagnostics: Vec<Diagnostic>,
+	syntax_attributes: Vec<SyntaxAttribute>,
 }
 
 #[cfg(test)]
@@ -494,11 +512,17 @@ fn expand_parsed_module(
 		}
 		diagnostics.append(&mut evaluator.deferred_diagnostics);
 	}
+	evaluator.begin_root();
+	if let Err(diagnostic) = evaluator.validate_syntax_attributes() {
+		diagnostics.push(diagnostic);
+		diagnostics.append(&mut evaluator.deferred_diagnostics);
+	}
 
 	ExpandedModule {
 		tree: Module {
 			members,
 			path: module.path.clone(),
+			attributes: evaluator.syntax_attributes.clone(),
 		},
 		tokens: expanded_tokens,
 		diagnostics,
@@ -513,6 +537,7 @@ impl<'a> Evaluator<'a> {
 		let mut methods = BTreeMap::new();
 		let mut const_lets = BTreeMap::new();
 		let mut public_consts = BTreeSet::new();
+		let mut parsed_imports = BTreeMap::new();
 		collect_const_declarations(
 			module,
 			&root,
@@ -522,6 +547,24 @@ impl<'a> Evaluator<'a> {
 			&mut const_lets,
 			&mut public_consts,
 		);
+		let meta = hoopoe_syntax::parse_module(crate::std_source::META_SOURCE, "std/meta.hoo");
+		collect_const_declarations(
+			&meta.tree,
+			&META_MODULE_OWNER.into(),
+			&"std/meta.hoo".into(),
+			&mut functions,
+			&mut methods,
+			&mut const_lets,
+			&mut public_consts,
+		);
+		let meta_names = public_consts
+			.iter()
+			.filter(|(owner, _)| owner == META_MODULE_OWNER)
+			.map(|(_, name)| ConstImportSource {
+				source: name.clone(),
+				local: name.clone(),
+			})
+			.collect::<Vec<_>>();
 		let mut imports = BTreeMap::new();
 		for imported in imported_modules {
 			let parsed = hoopoe_syntax::parse_module(&imported.source, imported.path.clone());
@@ -534,10 +577,33 @@ impl<'a> Evaluator<'a> {
 				&mut const_lets,
 				&mut public_consts,
 			);
+			parsed_imports.insert(imported.key.clone(), parsed.tree);
 			imports.insert(imported.key.clone(), imported.imports.clone());
 		}
-		let meta_type_names = imported_meta_type_names(module);
-		Self {
+		for owner in
+			std::iter::once(root.clone()).chain(imported_modules.iter().map(|module| module.key.clone()))
+		{
+			imports.entry(owner).or_default().push(ConstImport {
+				target: META_MODULE_OWNER.into(),
+				namespace: "meta".into(),
+				names: meta_names.clone(),
+			});
+		}
+		let mut meta_type_names = imported_meta_type_names(module);
+		if root == META_MODULE_OWNER {
+			meta_type_names.extend(
+				module
+					.members
+					.iter()
+					.filter_map(|declaration| match declaration {
+						Declaration::Struct { name, .. } | Declaration::Enum { name, .. } => {
+							Some(name.0.clone())
+						}
+						_ => None,
+					}),
+			);
+		}
+		let mut evaluator = Self {
 			module,
 			root: root.clone(),
 			owner: root,
@@ -556,6 +622,57 @@ impl<'a> Evaluator<'a> {
 			current_definition: 0,
 			origins: BTreeMap::new(),
 			deferred_diagnostics: Vec::new(),
+			attribute_options: BTreeMap::new(),
+			attribute_aliases: BTreeMap::new(),
+			attribute_import_diagnostics: Vec::new(),
+			syntax_attributes: module.attributes.clone(),
+		};
+		evaluator.register_imported_attribute_options(&parsed_imports);
+		evaluator
+	}
+
+	fn register_imported_attribute_options(&mut self, modules: &BTreeMap<EcoString, Module>) {
+		let imports = self.imports.get(&self.root).cloned().unwrap_or_default();
+		let mut registered = BTreeSet::new();
+		for import in imports {
+			let Some(module) = modules.get(&import.target) else {
+				continue;
+			};
+			for binding in import.names {
+				let key = (import.target.clone(), binding.source.clone());
+				if !self.public_consts.contains(&key) {
+					continue;
+				}
+				if registered.insert(key)
+					&& let Some(Declaration::Attached {
+						macros,
+						target_tokens,
+						target,
+					}) = attached_const_function(module, &binding.source)
+				{
+					for call in macros
+						.iter()
+						.filter(|call| attached_macro_name(call).as_deref() == Some("attributes"))
+					{
+						let target = AttachedTarget {
+							kind: DeclarationKind::Function,
+							tokens: target_tokens.to_vec(),
+							declaration: target.clone(),
+						};
+						if let Err(diagnostic) = self.eval_call(call, &mut Env::new(), Some(target)) {
+							self.attribute_import_diagnostics.push(diagnostic);
+						}
+					}
+				}
+				if binding.local != binding.source
+					&& let Some(options) = self.attribute_options.get(&binding.source).cloned()
+				{
+					self
+						.attribute_options
+						.insert(binding.local.clone(), options);
+					self.attribute_aliases.insert(binding.local, binding.source);
+				}
+			}
 		}
 	}
 
@@ -808,54 +925,60 @@ impl<'a> Evaluator<'a> {
 		target: &Declaration,
 		next_node_id: &mut u32,
 	) -> Result<ExpandedItems, Diagnostic> {
-		let kind = declaration_kind(target).ok_or_else(|| {
-			self.error(
-				macros.first().map_or(Span::new(0, 0), |call| call.span),
-				"attached macros require one concrete declaration",
-			)
-		})?;
-		let original = AttachedTarget {
-			kind,
-			tokens: target_tokens.to_vec(),
-			declaration: Box::new(target.clone()),
+		let mut current = Some((target.clone(), target_tokens.to_vec()));
+		let mut trailing = ExpandedItems {
+			declarations: Vec::new(),
+			tokens: Vec::new(),
 		};
-		let mut expanded = self.expand_declaration(target, target_tokens, next_node_id)?;
-		let parent_origin = declaration_span(target).origin;
-
 		for call in macros {
-			self.begin_attached_call(parent_origin);
-			let diagnostic_start = self.deferred_diagnostics.len();
-			let result = self.eval_call(call, &mut Env::new(), Some(original.clone()));
-			let result = match result {
-				Ok(value) => {
-					if let Some(origin) = self
-						.origins
-						.values()
-						.find(|origin| origin.invocation == call.span && origin.parent == parent_origin)
-						.map(|origin| origin.id)
-					{
-						self.current_origin = origin;
-					}
-					self
-						.require_tokens(value, call.span)
-						.and_then(|tokens| self.parse_declarations(tokens, call.span, next_node_id))
-						.and_then(|(declarations, token_groups)| {
-							self.expand_generated(declarations, token_groups, next_node_id)
-						})
-				}
-				Err(diagnostic) => Err(diagnostic),
+			let Some((declaration, tokens)) = current.take() else {
+				break;
 			};
-			match result {
-				Ok(mut generated) => {
-					expanded.declarations.append(&mut generated.declarations);
-					expanded.tokens.append(&mut generated.tokens);
-				}
-				Err(diagnostic) => self
-					.deferred_diagnostics
-					.insert(diagnostic_start, diagnostic),
+			let kind = declaration_kind(&declaration).ok_or_else(|| {
+				self.error(
+					call.span,
+					"attached macros require one concrete declaration",
+				)
+			})?;
+			let target = AttachedTarget {
+				kind,
+				tokens,
+				declaration: Box::new(declaration),
+			};
+			let parent_origin = declaration_span(&target.declaration).origin;
+			self.begin_attached_call(parent_origin);
+			let value = self.eval_call(call, &mut Env::new(), Some(target))?;
+			if let Some(origin) = self
+				.origins
+				.values()
+				.find(|origin| origin.invocation == call.span && origin.parent == parent_origin)
+				.map(|origin| origin.id)
+			{
+				self.current_origin = origin;
 			}
+			let output = self.require_tokens(value, call.span)?;
+			let (mut declarations, mut token_groups) =
+				self.parse_declarations(output, call.span, next_node_id)?;
+			if declarations.is_empty() {
+				continue;
+			}
+			current = Some((declarations.remove(0), token_groups.remove(0)));
+			let mut peers = self.expand_generated(declarations, token_groups, next_node_id)?;
+			peers.declarations.append(&mut trailing.declarations);
+			peers.tokens.append(&mut trailing.tokens);
+			trailing = peers;
 		}
 
+		let mut expanded = if let Some((declaration, tokens)) = current {
+			self.expand_declaration(&declaration, &tokens, next_node_id)?
+		} else {
+			ExpandedItems {
+				declarations: Vec::new(),
+				tokens: Vec::new(),
+			}
+		};
+		expanded.declarations.append(&mut trailing.declarations);
+		expanded.tokens.append(&mut trailing.tokens);
 		Ok(expanded)
 	}
 
@@ -911,6 +1034,9 @@ impl<'a> Evaluator<'a> {
 		}
 		*next_node_id =
 			max_node_id(&ranged.parsed.tree).map_or(*next_node_id, |id| id.saturating_add(1));
+		self
+			.syntax_attributes
+			.extend(ranged.parsed.tree.attributes.iter().cloned());
 		let token_groups = ranged
 			.declaration_ranges
 			.into_iter()
@@ -1013,7 +1139,10 @@ impl<'a> Evaluator<'a> {
 					"`this` is unavailable in this const context",
 				)
 			})?,
-			ExprKind::TokenLiteral(literal) => Value::Tokens(self.eval_token_literal(literal, env)?),
+			ExprKind::TokenLiteral(literal) => Value::Tokens(TokenValue {
+				items: self.eval_token_literal(literal, env)?,
+				preserve_origins: false,
+			}),
 			ExprKind::Expansion(value) | ExprKind::Grouped(value) => self.eval(value, env)?,
 			ExprKind::List(items) => Value::List(self.eval_items(items, env)?),
 			ExprKind::Tuple(items) => Value::Tuple(self.eval_items(items, env)?),
@@ -1122,12 +1251,18 @@ impl<'a> Evaluator<'a> {
 					}
 				}
 				let parent = self.eval(parent, env)?;
-				let Value::Record { fields, .. } = parent else {
+				let Value::Record { fields, .. } = &parent else {
 					return Err(self.error(
 						expression.span,
 						"const member access requires a meta record",
 					));
 				};
+				if member.0 == "attributes" && !fields.contains_key("attributes") {
+					let Some(span) = fields.get("span").and_then(value_span) else {
+						return Err(self.error(member.1, "meta syntax value has no source span"));
+					};
+					return self.meta_attributes(span);
+				}
 				fields
 					.get(&member.0)
 					.cloned()
@@ -1319,6 +1454,80 @@ impl<'a> Evaluator<'a> {
 		let ExprKind::Call { func, args, .. } = &call.kind else {
 			return Err(self.error(call.span, "an attached macro must use normal call syntax"));
 		};
+		if expression_path(func).as_deref() == Some("attributes") {
+			let Some(target) = target else {
+				return Err(self.error(call.span, "`attributes` must annotate a macro function"));
+			};
+			let Declaration::Func { meta, .. } = target.declaration.as_ref() else {
+				return Err(self.error(call.span, "`attributes` must annotate a macro function"));
+			};
+			let mut namespace = meta.name.0.clone();
+			let mut options = None;
+			for argument in args {
+				let CallArg::Value { name, value } = &argument.0 else {
+					return Err(self.error(argument.1, "`attributes` does not accept spread arguments"));
+				};
+				match name.as_ref().map(|name| name.0.as_str()) {
+					Some("namespace") => {
+						let Value::String(value) = self.eval(value, env)? else {
+							return Err(self.error(value.span, "attribute namespace must be a string"));
+						};
+						namespace = value;
+					}
+					Some(name) => {
+						return Err(self.error(
+							argument.1,
+							format!("unknown `attributes` parameter `{name}`"),
+						));
+					}
+					None if options.is_none() => {
+						let value = self.eval(value, env)?;
+						options = Some(self.require_tokens(value, argument.1)?);
+					}
+					None => {
+						return Err(self.error(argument.1, "`attributes` expects one option token stream"));
+					}
+				}
+			}
+			let Some(options) = options else {
+				return Err(self.error(call.span, "`attributes` expects an option token stream"));
+			};
+			let parsed = parse_wrapped_meta_syntax(
+				"struct __Attributes(",
+				&options,
+				")",
+				call.span,
+				&self.module.path,
+			);
+			if let Some(diagnostic) = parsed.diagnostics.into_iter().next() {
+				return Err(diagnostic.with_note("while parsing an `attributes` option list"));
+			}
+			let [Declaration::Struct { fields, .. }] = parsed.tree.members.as_slice() else {
+				return Err(self.error(call.span, "`attributes` expects `name: Type` entries"));
+			};
+			let registered = self.attribute_options.entry(namespace.clone()).or_default();
+			for field in fields {
+				if field.0.default.is_some() {
+					return Err(self.error(field.1, "attribute options cannot have defaults"));
+				}
+				if registered
+					.insert(field.0.name.0.clone(), field.0.type_.clone())
+					.is_some()
+				{
+					return Err(self.error(
+						field.0.name.1,
+						format!(
+							"attribute option `{namespace}.{}` is already registered",
+							field.0.name.0
+						),
+					));
+				}
+			}
+			return Ok(Value::Tokens(TokenValue {
+				items: target.tokens,
+				preserve_origins: false,
+			}));
+		}
 		if let Some(path) = expression_path(func)
 			&& path.ends_with(".parse")
 			&& let Some(value) = self.eval_meta_parse(&path, args, env, call.span)?
@@ -1335,7 +1544,12 @@ impl<'a> Evaluator<'a> {
 			&& args.is_empty()
 		{
 			return match self.eval(parent, env)? {
-				Value::Record { tokens, .. } | Value::Variant { tokens, .. } => Ok(Value::Tokens(tokens)),
+				Value::Record { tokens, .. } | Value::Variant { tokens, .. } => {
+					Ok(Value::Tokens(TokenValue {
+						items: tokens,
+						preserve_origins: false,
+					}))
+				}
 				_ => Err(self.error(parent.span, "`.tokens()` requires a std/meta construct")),
 			};
 		}
@@ -1441,6 +1655,7 @@ impl<'a> Evaluator<'a> {
 			meta,
 			body,
 		} = function;
+		let attached_target = target.clone();
 		let target_type = target
 			.as_ref()
 			.map(|target| self.check_attached_target(&meta, target, call.span))
@@ -1457,7 +1672,7 @@ impl<'a> Evaluator<'a> {
 						tokens,
 						declaration,
 					},
-				) => self.meta_declaration(kind, tokens, &declaration, true),
+				) => self.meta_declaration(kind, tokens, &declaration, true)?,
 				(
 					AttachedTargetType::Narrow,
 					AttachedTarget {
@@ -1465,16 +1680,22 @@ impl<'a> Evaluator<'a> {
 						tokens,
 						declaration,
 					},
-				) => self.meta_declaration(kind, tokens, &declaration, false),
+				) => self.meta_declaration(kind, tokens, &declaration, false)?,
 			});
 		}
 		for argument in args {
 			match &argument.0 {
-				CallArg::Value { value, .. } => values.push(self.eval(value, env)?),
-				CallArg::Spread { value } => match self.eval(value, env)? {
-					Value::List(items) | Value::Tuple(items) => values.extend(items),
-					_ => return Err(self.error(value.span, "a spread const argument must be a collection")),
-				},
+				CallArg::Value { value, .. } => {
+					values.push(self.eval_attached_argument(value, env, attached_target.as_ref())?)
+				}
+				CallArg::Spread { value } => {
+					match self.eval_attached_argument(value, env, attached_target.as_ref())? {
+						Value::List(items) | Value::Tuple(items) => values.extend(items),
+						_ => {
+							return Err(self.error(value.span, "a spread const argument must be a collection"));
+						}
+					}
+				}
 			}
 		}
 		if values.len() != meta.params.len() {
@@ -1565,7 +1786,10 @@ impl<'a> Evaluator<'a> {
 		let value = self.eval(args[0].0.value(), env)?;
 		let tokens = self.require_tokens(value, args[0].1)?;
 		if type_name == "Tokens" {
-			return Ok(Some(Value::Tokens(tokens)));
+			return Ok(Some(Value::Tokens(TokenValue {
+				items: tokens,
+				preserve_origins: false,
+			})));
 		}
 		if type_name == "Expression" {
 			let end = tokens.last().map_or(span.end, |token| token.1.end);
@@ -1634,7 +1858,7 @@ impl<'a> Evaluator<'a> {
 			tokens,
 			declaration,
 			expected == "Declaration",
-		)))
+		)?))
 	}
 
 	fn eval_meta_constructor(
@@ -1789,7 +2013,10 @@ impl<'a> Evaluator<'a> {
 			for item in items {
 				tokens.extend(self.token_convert(item.clone(), span)?);
 			}
-			return Ok(Some(Value::Tokens(tokens)));
+			return Ok(Some(Value::Tokens(TokenValue {
+				items: tokens,
+				preserve_origins: false,
+			})));
 		}
 		if path.contains("Token.") {
 			let token_name = path.rsplit('.').next().unwrap_or(path);
@@ -1835,7 +2062,7 @@ impl<'a> Evaluator<'a> {
 				| "Type"
 		) {
 			let fields = self.eval_constructor_fields(args, &["tokens", "span"], env, span)?;
-			let Some(Value::Tokens(tokens)) = fields.get("tokens") else {
+			let Some(Value::Tokens(TokenValue { items: tokens, .. })) = fields.get("tokens") else {
 				return Err(self.error(span, "std/meta syntax tokens must be `meta.Tokens`"));
 			};
 			let tokens = tokens.clone();
@@ -2346,6 +2573,49 @@ impl<'a> Evaluator<'a> {
 		id
 	}
 
+	fn eval_attached_argument(
+		&mut self,
+		expression: &Expr,
+		env: &mut Env,
+		target: Option<&AttachedTarget>,
+	) -> Result<Value, Diagnostic> {
+		if let Some(target) = target
+			&& let ExprKind::Call { func, args, .. } = &expression.kind
+			&& let Some(path) = expression_path(func)
+			&& let Some(key) = self.resolve_const_path(&path)
+			&& let Some(function) = self.functions.get(&key)
+			&& function.meta.params.len() == args.len() + 1
+			&& function
+				.meta
+				.params
+				.first()
+				.is_some_and(|parameter| is_attached_target_type(&parameter.0.type_.0))
+		{
+			let parent_origin = self.current_origin;
+			let value = self.eval_call(expression, env, Some(target.clone()))?;
+			if matches!(value, Value::Tokens(_)) {
+				return Ok(value);
+			}
+			if let Some(origin) = self
+				.origins
+				.values()
+				.find(|origin| origin.invocation == expression.span && origin.parent == parent_origin)
+				.map(|origin| origin.id)
+			{
+				self.current_origin = origin;
+			}
+			let tokens = self.require_tokens(value, expression.span);
+			self.current_origin = parent_origin;
+			return tokens.map(|items| {
+				Value::Tokens(TokenValue {
+					items,
+					preserve_origins: false,
+				})
+			});
+		}
+		self.eval(expression, env)
+	}
+
 	fn check_attached_target(
 		&self,
 		meta: &FuncDeclaration,
@@ -2408,17 +2678,126 @@ impl<'a> Evaluator<'a> {
 		}
 	}
 
+	fn meta_attributes(&mut self, span: Span) -> Result<Value, Diagnostic> {
+		let mut namespaces = self
+			.attribute_options
+			.iter()
+			.map(|(namespace, options)| {
+				let fields = options
+					.keys()
+					.map(|option| (option.clone(), meta_option(None)))
+					.collect();
+				(
+					namespace.clone(),
+					Value::Record {
+						owner: None,
+						name: namespace.clone(),
+						fields,
+						tokens: Vec::new(),
+					},
+				)
+			})
+			.collect::<BTreeMap<_, _>>();
+		let attributes = self
+			.syntax_attributes
+			.iter()
+			.filter(|attribute| attribute.target == span)
+			.cloned()
+			.collect::<Vec<_>>();
+		for attribute in attributes {
+			let Some(options) = self.attribute_options.get(&attribute.namespace.0) else {
+				return Err(self.error(
+					attribute.namespace.1,
+					format!("unknown attribute namespace `{}`", attribute.namespace.0),
+				));
+			};
+			let Some(expected) = options.get(&attribute.option.0).cloned() else {
+				return Err(self.error(
+					attribute.option.1,
+					format!(
+						"unknown attribute option `{}.{}`",
+						attribute.namespace.0, attribute.option.0
+					),
+				));
+			};
+			let value = self.eval(&attribute.value, &mut Env::new())?;
+			if !value_matches_attribute_type(&value, &expected.0) {
+				return Err(self.error(
+					attribute.value.span,
+					format!(
+						"attribute `{}.{}` has the wrong value type; expected {:?}",
+						attribute.namespace.0, attribute.option.0, expected.0
+					),
+				));
+			}
+			let namespace = self
+				.attribute_aliases
+				.get(&attribute.namespace.0)
+				.unwrap_or(&attribute.namespace.0)
+				.clone();
+			let Value::Record { fields, .. } = namespaces
+				.get_mut(&namespace)
+				.expect("registered namespace has a metadata record")
+			else {
+				unreachable!()
+			};
+			if fields
+				.insert(attribute.option.0.clone(), meta_option(Some(value)))
+				.is_some_and(
+					|previous| !matches!(previous, Value::Variant { ref name, .. } if name == "None"),
+				) {
+				return Err(self.error(
+					attribute.option.1,
+					"an attribute option can only be set once per node",
+				));
+			}
+		}
+		for (alias, namespace) in &self.attribute_aliases {
+			if let Some(value) = namespaces.get(namespace).cloned() {
+				namespaces.insert(alias.clone(), value);
+			}
+		}
+		Ok(Value::Record {
+			owner: None,
+			name: "Attributes".into(),
+			fields: namespaces,
+			tokens: Vec::new(),
+		})
+	}
+
+	fn validate_syntax_attributes(&mut self) -> Result<(), Diagnostic> {
+		if !self.attribute_import_diagnostics.is_empty() {
+			return Err(self.attribute_import_diagnostics.remove(0));
+		}
+		let mut targets = Vec::new();
+		for target in self
+			.syntax_attributes
+			.iter()
+			.map(|attribute| attribute.target)
+		{
+			if !targets.contains(&target) {
+				targets.push(target);
+			}
+		}
+		for target in targets {
+			self.meta_attributes(target)?;
+		}
+		Ok(())
+	}
+
 	fn meta_declaration(
-		&self,
+		&mut self,
 		kind: DeclarationKind,
 		tokens: Vec<Spanned<Token>>,
 		declaration: &Declaration,
 		wrap: bool,
-	) -> Value {
+	) -> Result<Value, Diagnostic> {
 		let name = format!("{kind:?}");
+		let span = declaration_tokens_span(&tokens);
 		let mut fields = BTreeMap::from([
 			("kind".into(), Value::String(name.clone().into())),
-			("span".into(), meta_span(declaration_tokens_span(&tokens))),
+			("span".into(), meta_span(span)),
+			("attributes".into(), self.meta_attributes(span)?),
 		]);
 		let visibility = match declaration {
 			Declaration::Let { visibility, .. }
@@ -2458,7 +2837,7 @@ impl<'a> Evaluator<'a> {
 							.params
 							.iter()
 							.map(|parameter| {
-								let parameter_fields = BTreeMap::from([
+								let mut parameter_fields = BTreeMap::from([
 									("span".into(), meta_span(parameter.1)),
 									("spread".into(), Value::Boolean(parameter.0.spread)),
 									(
@@ -2481,14 +2860,15 @@ impl<'a> Evaluator<'a> {
 										),
 									),
 								]);
-								Value::Record {
+								parameter_fields.insert("attributes".into(), self.meta_attributes(parameter.1)?);
+								Ok(Value::Record {
 									owner: None,
 									name: "Parameter".into(),
 									fields: parameter_fields,
 									tokens: tokens_in_span(&tokens, parameter.1),
-								}
+								})
 							})
-							.collect(),
+							.collect::<Result<Vec<_>, Diagnostic>>()?,
 					),
 				);
 			}
@@ -2505,10 +2885,8 @@ impl<'a> Evaluator<'a> {
 					Value::List(
 						declaration_fields
 							.iter()
-							.map(|field| Value::Record {
-								owner: None,
-								name: "Field".into(),
-								fields: BTreeMap::from([
+							.map(|field| {
+								let mut fields = BTreeMap::from([
 									(
 										"name".into(),
 										Value::Name(field.0.name.0.clone(), field.0.name.1),
@@ -2528,10 +2906,16 @@ impl<'a> Evaluator<'a> {
 										),
 									),
 									("span".into(), meta_span(field.1)),
-								]),
-								tokens: tokens_in_span(&tokens, field.1),
+								]);
+								fields.insert("attributes".into(), self.meta_attributes(field.1)?);
+								Ok(Value::Record {
+									owner: None,
+									name: "Field".into(),
+									fields,
+									tokens: tokens_in_span(&tokens, field.1),
+								})
 							})
-							.collect(),
+							.collect::<Result<Vec<_>, Diagnostic>>()?,
 					),
 				);
 				fields.insert(
@@ -2787,7 +3171,7 @@ impl<'a> Evaluator<'a> {
 				}),
 				tokens: tokens.clone(),
 			};
-			return if wrap {
+			return Ok(if wrap {
 				Value::Variant {
 					name: "External".into(),
 					value: Box::new(external),
@@ -2795,7 +3179,7 @@ impl<'a> Evaluator<'a> {
 				}
 			} else {
 				external
-			};
+			});
 		}
 		let record = Value::Record {
 			owner: None,
@@ -2803,7 +3187,7 @@ impl<'a> Evaluator<'a> {
 			fields,
 			tokens: tokens.clone(),
 		};
-		if wrap {
+		Ok(if wrap {
 			Value::Variant {
 				name: name.into(),
 				value: Box::new(record),
@@ -2811,7 +3195,7 @@ impl<'a> Evaluator<'a> {
 			}
 		} else {
 			record
-		}
+		})
 	}
 
 	fn bind_pattern(
@@ -3005,16 +3389,19 @@ impl<'a> Evaluator<'a> {
 	fn token_convert(&mut self, value: Value, span: Span) -> Result<Vec<Spanned<Token>>, Diagnostic> {
 		let token = |token| vec![Spanned(token, span)];
 		match value {
-			Value::Tokens(tokens) => Ok(
-				tokens
+			Value::Tokens(TokenValue {
+				items,
+				preserve_origins,
+			}) => Ok(
+				items
 					.into_iter()
 					.map(|Spanned(token, token_span)| {
 						Spanned(
 							token,
-							if token_span.origin == OriginId::SOURCE {
-								token_span.with_origin(self.current_origin)
-							} else {
+							if preserve_origins || token_span.origin != OriginId::SOURCE {
 								token_span
+							} else {
+								token_span.with_origin(self.current_origin)
 							},
 						)
 					})
@@ -3326,6 +3713,17 @@ impl<'a> Evaluator<'a> {
 				a.push_str(&b);
 				Ok(Value::String(a))
 			}
+			(
+				Value::Tokens(TokenValue { items: mut a, .. }),
+				Op::Plus,
+				Value::Tokens(TokenValue { items: b, .. }),
+			) => {
+				a.extend(b);
+				Ok(Value::Tokens(TokenValue {
+					items: a,
+					preserve_origins: true,
+				}))
+			}
 			(a, Op::Equals, b) => Ok(Value::Boolean(a == b)),
 			(a, Op::NotEquals, b) => Ok(Value::Boolean(a != b)),
 			_ => Err(self.error(span, "invalid const binary operation")),
@@ -3455,6 +3853,80 @@ fn declaration_tokens_span(tokens: &[Spanned<Token>]) -> Span {
 		(Some(first), Some(last)) => first.1.to(last.1),
 		_ => Span::new(0, 0),
 	}
+}
+
+fn value_matches_attribute_type(value: &Value, expected: &Type) -> bool {
+	match expected {
+		Type::Int => matches!(value, Value::Int(_)),
+		Type::UInt => matches!(value, Value::UInt(_)),
+		Type::Float => matches!(value, Value::Float(_)),
+		Type::Char => matches!(value, Value::Char(_)),
+		Type::String => matches!(value, Value::String(_)),
+		Type::Boolean => matches!(value, Value::Boolean(_)),
+		Type::Void => {
+			matches!(value, Value::Void) || matches!(value, Value::Tuple(values) if values.is_empty())
+		}
+		Type::List(item) => match value {
+			Value::List(values) => values
+				.iter()
+				.all(|value| value_matches_attribute_type(value, &item.0)),
+			_ => false,
+		},
+		Type::Tuple(items) => match value {
+			Value::Tuple(values) => {
+				items.len() == values.len()
+					&& items
+						.iter()
+						.zip(values)
+						.all(|(item, value)| value_matches_attribute_type(value, &item.0))
+			}
+			_ => false,
+		},
+		Type::Grouped(inner) => value_matches_attribute_type(value, &inner.0),
+		Type::Reference { name, .. } => match value {
+			Value::Record { name: actual, .. } => actual == &name.0,
+			Value::Variant { value, .. } => {
+				matches!(value.as_ref(), Value::Record { name: actual, .. } if actual == &name.0)
+			}
+			_ => false,
+		},
+		Type::Map(key, item) => match value {
+			Value::Map(values) => values.iter().all(|(actual_key, actual_item)| {
+				value_matches_attribute_type(actual_key, &key.0)
+					&& value_matches_attribute_type(actual_item, &item.0)
+			}),
+			_ => false,
+		},
+		Type::Function { .. } => matches!(value, Value::Closure { .. }),
+		Type::Intersection(left, right) => {
+			value_matches_attribute_type(value, &left.0) && value_matches_attribute_type(value, &right.0)
+		}
+		Type::Never => false,
+		Type::SelfType | Type::Infer => true,
+	}
+}
+
+fn is_attached_target_type(type_: &Type) -> bool {
+	let Type::Reference { name, .. } = type_ else {
+		return false;
+	};
+	matches!(
+		name.0.rsplit('.').next(),
+		Some(
+			"Declaration"
+				| "Import"
+				| "Let"
+				| "Function"
+				| "Struct"
+				| "Enum"
+				| "Interface"
+				| "Implementation"
+				| "Namespace"
+				| "Effect"
+				| "TypeAlias"
+				| "ExternalDeclaration"
+		)
+	)
 }
 
 fn tokens_in_span(tokens: &[Spanned<Token>], span: Span) -> Vec<Spanned<Token>> {
@@ -3816,6 +4288,26 @@ fn meta_unit_token(name: &str) -> Option<Token> {
 	)
 }
 
+fn attached_const_function<'a>(module: &'a Module, name: &str) -> Option<&'a Declaration> {
+	module.members.iter().find(|declaration| {
+		matches!(
+			declaration,
+			Declaration::Attached { target, .. }
+				if matches!(
+					target.as_ref(),
+					Declaration::Func { meta, .. } if meta.is_const && meta.name.0 == name
+				)
+		)
+	})
+}
+
+fn attached_macro_name(expression: &Expr) -> Option<String> {
+	let ExprKind::Call { func, .. } = &expression.kind else {
+		return None;
+	};
+	expression_path(func)
+}
+
 fn definition_context(module: &str, function: &FuncDeclaration) -> u64 {
 	stable_hash(&[
 		module.as_bytes(),
@@ -3848,6 +4340,30 @@ fn collect_const_declarations(
 ) {
 	for declaration in &module.members {
 		match declaration {
+			Declaration::Attached { target, .. } if matches!(target.as_ref(), Declaration::Func { meta, .. } if meta.is_const) =>
+			{
+				let Declaration::Func {
+					visibility,
+					meta,
+					body,
+				} = target.as_ref()
+				else {
+					unreachable!()
+				};
+				let key = (owner.clone(), meta.name.0.clone());
+				if visibility == &Some(hoopoe_ast::decl::Visibility::Public) {
+					public_consts.insert(key.clone());
+				}
+				functions.insert(
+					key,
+					ConstFunction {
+						owner: owner.clone(),
+						path: path.clone(),
+						meta: meta.clone(),
+						body: body.clone(),
+					},
+				);
+			}
 			Declaration::Func {
 				visibility,
 				meta,

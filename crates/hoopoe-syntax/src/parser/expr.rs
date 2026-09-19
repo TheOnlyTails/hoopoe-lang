@@ -36,7 +36,10 @@ fn bp(prec: Precedence, right_assoc: bool) -> (u16, u16) {
 
 impl Parser<'_> {
 	pub(super) fn parse_expr(&mut self) -> Expr {
-		self.parse_bp(0)
+		let attributes = self.parse_metadata_attributes();
+		let expression = self.parse_bp(0);
+		self.record_metadata_attributes(attributes, expression.span);
+		expression
 	}
 
 	fn parse_bp(&mut self, min_bp: u16) -> Expr {
@@ -452,7 +455,9 @@ impl Parser<'_> {
 			}
 			Token::Identifier(_) => {
 				// A labeled closure or block: `label@(params) -> body`, `label@{...}`.
-				if self.peek_nth(1) == Some(&Token::At) {
+				if self.peek_nth(1) == Some(&Token::At)
+					&& matches!(self.peek_nth(2), Some(Token::LParen | Token::LBrace))
+				{
 					let label = self.expect_ident();
 					let at = self.expect(&Token::At).unwrap();
 					self.require_label_adjacency(label.1, at);
@@ -973,6 +978,8 @@ impl Parser<'_> {
 		self.expect(&Token::RParen);
 		self.expect(&Token::LBrace);
 		let arms = self.comma_separated(&Token::RBrace, |p| {
+			let attributes = p.parse_metadata_attributes();
+			let start = p.position();
 			let pattern = p.parse_pattern();
 			let guard = if p.eat(&Token::If).is_some() {
 				Some(p.parse_expr())
@@ -981,11 +988,13 @@ impl Parser<'_> {
 			};
 			p.expect(&Token::Arrow);
 			let body = p.parse_expr();
-			MatchArm {
+			let arm = MatchArm {
 				pattern,
 				guard,
 				body,
-			}
+			};
+			p.record_metadata_attributes(attributes, p.span_from(start));
+			arm
 		});
 		self.mk_expr(
 			ExprKind::Match {
@@ -1058,8 +1067,9 @@ impl Parser<'_> {
 	}
 
 	fn parse_statement(&mut self) -> Spanned<Statement> {
+		let attributes = self.parse_metadata_attributes();
 		let start = self.position();
-		if self.check(&Token::Let) {
+		let statement = if self.check(&Token::Let) {
 			let (meta, value) = self.parse_let_binding();
 			Spanned(
 				Statement::Let {
@@ -1071,7 +1081,9 @@ impl Parser<'_> {
 		} else {
 			let expr = self.parse_expr();
 			Spanned(Statement::Expr(expr), self.span_from(start))
-		}
+		};
+		self.record_metadata_attributes(attributes, statement.1);
+		statement
 	}
 
 	fn can_start_expr(&self) -> bool {

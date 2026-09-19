@@ -43,46 +43,59 @@ calls and arbitrary callee expressions continue to use the long form.
 
 ## Attached declaration macros
 
-`$[call(...)]` immediately precedes a declaration and adds peer declarations after it.
-It cannot replace, remove, or modify its target. It is valid for every declaration kind,
-including imports and external declarations. The parser builds the handwritten target
-once, and the compiler retains that original exactly once. The checker supplies its
-immutable typed `std/meta` value as the call's implicit first argument. A broad
+`@call(...)` immediately precedes a declaration and transforms it. It is valid for every
+declaration kind, including imports and external declarations. The checker supplies the
+declaration's immutable typed `std/meta` value as the call's implicit first argument. A broad
 `meta.Declaration` parameter accepts every declaration; narrow types such as
 `meta.Function`, `meta.Struct`, and `meta.Enum` are checked before execution.
 
 Attached calls return any `T: Into<meta.Tokens>`, any deterministic iterable of such
 values, `Result<T, meta.Diagnostic>`, or the corresponding diagnostic-list form.
-Every attachment may produce zero, one, or many declarations. The compiler appends each
-attachment's output after the original in attachment source order.
+They may replace the declaration, emit several declarations, or remove it by returning
+no tokens. `@extend(call(...))` is the additive form: it retains the input declaration
+and appends the wrapped call's output. `extend` is an ambient public `const func` from
+`std/meta`, implemented by concatenating the target and generated token streams. The
+compiler only supplies implicit targets to attached macro calls, including calls passed
+to macro combinators; it does not implement `extend` itself.
 
-Stacked attachments are independent. Each receives the same typed original, with the
-same tokens, spans, syntax identity, and provenance; no attachment sees or transforms a
-sibling's output. Each target parameter is checked against the original declaration
-category. Generated declarations are ordinary peers, so re-emitting the target or
-otherwise conflicting with it produces the normal declaration-collision diagnostic
-with expansion provenance. There is no collection handoff or inner/outer pipeline.
+Stacked macros run from top to bottom. After each call, the next macro attaches to the
+first emitted declaration as though that declaration had appeared in the source. Later
+emitted declarations are peers and bypass the remaining macros. If a call emits nothing,
+the pipeline stops. Target parameters are checked at every step, and failures retain the
+full expansion chain.
 
-Replacement, removal, and source transformation use direct `$(expression)` expansion.
-Code performing such a transformation explicitly parses or carries a typed
-`meta.Function`, `meta.Declaration`, or other syntax value and expands the returned
-replacement at the intended grammar position.
+## Metadata attributes
+
+`@namespace.option = value` adds inert metadata to the following syntax node. The value
+must be available during const evaluation. Attribute namespaces and option types are
+registered by annotating a macro function with the built-in `attributes` macro:
 
 ```hoopoe
-const let original = meta.Function.parse(\(func answer(): int = 0))
-const func replace(function: meta.Function): meta.Function = meta.Function(
-  visibility = function.visibility,
-  name = function.name,
-  is_const = function.is_const,
-  is_async = function.is_async,
-  parameters = function.parameters,
-  return_type = function.return_type,
-  body = meta.Expression.parse(\(42)),
-  span = function.span,
-)
+@attributes(\(convert_case: Case, skip: boolean))
+const func serialize(target: meta.Struct): meta.Tokens = target
 
-$(replace(original))
+@serialize()
+struct User(
+  @serialize.convert_case = Case.CamelCase
+  user_name: string,
+)
 ```
+
+The namespace defaults to the annotated function's name. A call may set
+`namespace = "other"`, and a function may register several namespaces with stacked
+`@attributes` calls. Every option is exposed as `Option<T>` through syntax records, for
+example `field.attributes.serialize.convert_case`. Metadata stays with its syntax node
+when that node is reused by a transformation. Options may annotate any structured syntax
+node; a consuming macro decides whether an option is meaningful at that location. A
+named import also imports the macro's default attribute namespace. Renaming the macro
+renames that namespace at the call site while the macro body continues to use its
+definition-site name.
+
+The parser records metadata against syntax-node spans before attached macros run. The
+expanded syntax tree carries that table through checking and lowering, while typed
+`std/meta` records project the entries onto their annotated nodes for macros. Metadata is
+compile-time information and is not copied into the location-free runtime HIR emitted to
+JavaScript.
 
 ## Expansion and imports
 
@@ -133,13 +146,13 @@ Captured tokens keep caller context, literal-written tokens use the const defini
 context, and interpolated tokens retain their existing context. `Name.fresh` creates a
 new hygienic name and `Name.exposed` deliberately resolves at the expansion site.
 Generated node IDs derive from the invocation identity, expansion step, and output
-position. Generated spans retain both their token origin and the invocation/attachment
+position. Generated spans retain both their token origin and the invocation
 chain so diagnostics can show a macro expansion trace. Hidden runtime type objects
 remain calling-convention data and are not exposed as reflection.
 
 ## Diagnostics
 
-Const evaluation, token conversion, iteration, independent attachment execution, generated
+Const evaluation, token conversion, iteration, attached-macro execution, generated
 parsing and typing, compile-time-only leakage, resource limits, cycles, and generated
 import fixed-point failures all produce the normal structured Hoopoe diagnostic. The
 primary label identifies the failing source operation. Secondary labels identify const

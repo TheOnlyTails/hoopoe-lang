@@ -119,7 +119,11 @@
 				},
 				{
 					"name": "keyword.operator.attached-macro.hoopoe",
-					"match": "\\$(?=\\[)"
+					"match": "@(?=[_\\p{L}][_\\p{L}\\p{N}]*\\s*\\()"
+				},
+				{
+					"name": "keyword.operator.attribute.hoopoe",
+					"match": "@(?=[_\\p{L}][_\\p{L}\\p{N}]*\\.[_\\p{L}][_\\p{L}\\p{N}]*\\s*=)"
 				}
 			]
 		},

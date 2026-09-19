@@ -136,7 +136,7 @@ accept a loose source file or default to `build.entry`.
 
 The output is the final project expansion fixed point. It includes generated
 imports and declarations, applies direct expansions in every grammar destination
-and additive attached macros, and omits const-only declarations and macro markers.
+and attached macros, and omits const-only declarations and macro markers.
 The output goes to stdout only after the complete project passes expansion,
 parsing, and analysis. Failures produce the normal source diagnostics on stderr,
 return a nonzero status, and print no partial source.

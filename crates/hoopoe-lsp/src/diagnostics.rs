@@ -383,7 +383,7 @@ mod tests {
 	fn additive_attachment_collisions_keep_provenance_in_lsp() {
 		let uri: Uri = "file:///macro.hoo".parse().unwrap();
 		let text = "const func duplicate(target: meta.Struct): meta.Struct = target\n\
-			$[duplicate()] struct Point\n";
+			@extend(duplicate()) struct Point\n";
 		let diagnostics = hoopoe_compiler::check(text, "macro.hoo");
 		let diagnostic = diagnostics
 			.iter()

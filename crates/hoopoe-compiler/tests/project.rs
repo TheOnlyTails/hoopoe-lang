@@ -279,7 +279,7 @@ fn attached_macros_apply_to_imports_before_graph_discovery() {
 		(
 			"main",
 			"const func inspect(target: meta.Import): meta.Tokens = \\()\n\
-			 $[inspect()] import @/generated with (answer)\n\
+			 @extend(inspect()) import @/generated with (answer)\n\
 			 func main(): void = { let value: int = answer() }",
 		),
 		("generated", "public func answer(): int = 42"),
@@ -320,13 +320,87 @@ fn attached_macros_receive_the_typed_target_while_the_compiler_retains_it() {
 	let files = FxHashMap::from_iter([(
 		"main",
 		"const func inspect(target: meta.Struct): meta.Tokens = \\()\n\
-		 $[inspect()] struct Point(x: int)\n\
+		 @extend(inspect()) struct Point(x: int)\n\
 		 func main(): void = { let point = Point(x = 1) }",
 	)]);
 	let diagnostics = check_project("main", &loader(files));
 	assert!(
 		diagnostics.is_empty(),
 		"unexpected diagnostics: {diagnostics:?}"
+	);
+}
+
+#[test]
+fn declared_metadata_attributes_are_available_on_meta_syntax_nodes() {
+	let files = FxHashMap::from_iter([(
+		"main",
+		"@attributes(\\(enabled: boolean))\n\
+		 const func configured(target: meta.Struct): meta.Tokens = \
+		   match (target.attributes.configured.enabled) {\
+		     Some(value = true) -> match (target.fields[0].attributes.configured.enabled) {\
+		       Some(value = true) -> target,\
+		       _ -> \\(this is not valid Hoopoe),\
+		     },\
+		     _ -> \\(this is not valid Hoopoe),\
+		   }\n\
+		 @configured.enabled = true\n\
+		 @configured() struct Point(@configured.enabled = true value: int)\n\
+		 func main(): void = { let point = Point(value = 1) }",
+	)]);
+	let diagnostics = check_project("main", &loader(files));
+	assert!(
+		diagnostics.is_empty(),
+		"unexpected diagnostics: {diagnostics:?}"
+	);
+}
+
+#[test]
+fn importing_a_macro_aliases_its_default_attribute_namespace() {
+	let files = FxHashMap::from_iter([
+		(
+			"main",
+			"import @/macros with (configured as renamed)\n\
+			 @renamed() struct Point(@renamed.enabled = true value: int)\n\
+			 func main(): void = { let point = Point(value = 1) }",
+		),
+		(
+			"macros",
+			"@attributes(\\(enabled: boolean))\n\
+			 public const func configured(target: meta.Struct): meta.Tokens = \
+			   match (target.fields[0].attributes.configured.enabled) {\
+			     Some(value = true) -> target,\
+			     _ -> \\(this is not valid Hoopoe),\
+			   }",
+		),
+	]);
+	let diagnostics = check_project("main", &loader(files));
+	assert!(
+		diagnostics.is_empty(),
+		"unexpected diagnostics: {diagnostics:?}"
+	);
+}
+
+#[test]
+fn metadata_attribute_values_match_declared_nominal_types() {
+	let files = FxHashMap::from_iter([(
+		"main",
+		"enum Case { CamelCase }\n\
+		 enum Other { Value }\n\
+		 @attributes(\\(case: Case))\n\
+		 const func configured(target: meta.Struct): meta.Tokens = target\n\
+		 @configured.case = Case.CamelCase struct Valid\n\
+		 @configured.case = Other.Value struct Invalid\n\
+		 func main(): void = {}",
+	)]);
+	let diagnostics = check_project("main", &loader(files));
+	assert_eq!(
+		diagnostics.len(),
+		1,
+		"unexpected diagnostics: {diagnostics:?}"
+	);
+	assert!(
+		diagnostics[0].diag.message.contains("expected Reference"),
+		"unexpected diagnostic: {diagnostics:?}"
 	);
 }
 
@@ -463,7 +537,7 @@ fn public_meta_span_constructor_preserves_context_and_origin() {
 		     origin = 3u,\
 		   ),\
 		 ))\n\
-		 $[reject()] struct Point";
+		 @reject() struct Point";
 	let files = FxHashMap::from_iter([("main", source)]);
 	let diagnostics = check_project("main", &loader(files));
 	let span = diagnostics
@@ -539,7 +613,7 @@ fn broad_attached_macro_can_pattern_match_the_public_declaration_enum() {
 		   meta.Declaration.Struct(value = value) -> \\(),\n\
 		   _ -> \\(),\n\
 		 }\n\
-		 $[inspect_struct()] struct Point(x: int)\n\
+		 @extend(inspect_struct()) struct Point(x: int)\n\
 		 func main(): void = { let point = Point(x = 1) }",
 	)]);
 	let diagnostics = check_project("main", &loader(files));
@@ -555,7 +629,7 @@ fn narrow_meta_records_expose_constructible_syntax_fields() {
 		"main",
 		"const func derive_copy(target: meta.Struct): meta.Tokens = \
 		\\(struct Copy(...$(target.fields,)))\n\
-		 $[derive_copy()] struct Point(x: int, y: int)\n\
+		 @extend(derive_copy()) struct Point(x: int, y: int)\n\
 		 func main(): void = {\n\
 		   let point = Point(x = 1, y = 2)\n\
 		   let copy = Copy(x = 1, y = 2)\
@@ -572,7 +646,7 @@ fn narrow_meta_records_expose_constructible_syntax_fields() {
 fn attached_macro_result_diagnostics_use_the_supplied_meta_span() {
 	let source = "const func reject(target: meta.Struct): Result<meta.Tokens, meta.Diagnostic> = \
 		 Error(error = meta.Diagnostic(message = \"derive failed\", span = target.span))\n\
-		 $[reject()] struct Point(x: int)";
+		 @reject() struct Point(x: int)";
 	let files = FxHashMap::from_iter([("main", source)]);
 	let diagnostics = check_project("main", &loader(files));
 	let diagnostic = diagnostics
@@ -593,7 +667,7 @@ fn attached_macro_reports_every_returned_diagnostic() {
 			meta.Diagnostic(message = \"first failure\", span = target.span), \
 			meta.Diagnostic(message = \"second failure\", span = target.span)\
 		 ])\n\
-		 $[reject()] struct Point(x: int)";
+		 @reject() struct Point(x: int)";
 	let files = FxHashMap::from_iter([("main", source)]);
 	let diagnostics = check_project("main", &loader(files));
 	let messages = diagnostics
@@ -610,7 +684,7 @@ fn attached_macro_accepts_result_ok_tokens() {
 		"main",
 		"const func inspect(target: meta.Struct): Result<meta.Tokens, meta.Diagnostic> = \
 		 Ok(value = \\())\n\
-		 $[inspect()] struct Point(x: int)\n\
+		 @extend(inspect()) struct Point(x: int)\n\
 		 func main(): void = { let point = Point(x = 1) }",
 	)]);
 	let diagnostics = check_project("main", &loader(files));
@@ -771,7 +845,7 @@ fn direct_macro_output_flattens_generic_iterators_in_order() {
 }
 
 #[test]
-fn stacked_attachments_are_additive_and_flatten_zero_or_many_outputs() {
+fn stacked_extends_flatten_zero_or_many_outputs() {
 	let files = FxHashMap::from_iter([(
 		"main",
 		"const func emit_nothing(target: meta.Struct): meta.Tokens = \\()\n\
@@ -780,7 +854,7 @@ fn stacked_attachments_are_additive_and_flatten_zero_or_many_outputs() {
 		   meta.Function.parse(\\(func first(): int = 20)),\
 		   meta.Function.parse(\\(func second(): int = 22)),\
 		 ])\n\
-		 $[emit_nothing()] $[emit_many()] struct Point(value: int)\n\
+		 @extend(emit_nothing()) @extend(emit_many()) struct Point(value: int)\n\
 		 func main(): void = {\
 		   let point = Point(value = first() + second())\
 		 }",
@@ -793,31 +867,54 @@ fn stacked_attachments_are_additive_and_flatten_zero_or_many_outputs() {
 }
 
 #[test]
-fn every_stacked_attachment_is_checked_against_the_original_target() {
+fn meta_qualified_extend_is_supplied_by_the_standard_library() {
+	let files = FxHashMap::from_iter([(
+		"main",
+		"const func helper(target: meta.Struct): meta.Tokens = \
+		   \\(func generated(): int = 42)\n\
+		 @meta.extend(helper()) struct Point(value: int)\n\
+		 func main(): void = {\
+		   let point = Point(value = generated())\
+		 }",
+	)]);
+	let diagnostics = check_project("main", &loader(files));
+	assert!(
+		diagnostics.is_empty(),
+		"unexpected diagnostics: {diagnostics:?}"
+	);
+}
+
+#[test]
+fn user_defined_macro_combinators_pass_the_attached_target_to_nested_calls() {
+	let files = FxHashMap::from_iter([(
+		"main",
+		"const func retain(target: meta.Declaration, generated: meta.Tokens): meta.Tokens = \
+		   \\($(target) $(generated))\n\
+		 const func helper(target: meta.Struct): meta.Tokens = \
+		   \\(func generated(): int = 42)\n\
+		 @retain(helper()) struct Point(value: int)\n\
+		 func main(): void = {\
+		   let point = Point(value = generated())\
+		 }",
+	)]);
+	let diagnostics = check_project("main", &loader(files));
+	assert!(
+		diagnostics.is_empty(),
+		"unexpected diagnostics: {diagnostics:?}"
+	);
+}
+
+#[test]
+fn stacked_attached_macros_receive_the_previous_replacement() {
 	let source = "const func emit_function(target: meta.Struct): meta.Tokens = \
 		 \\(func generated(): int = 42)\n\
-		 const func expects_function(target: meta.Function): meta.Tokens = \\()\n\
-		 $[emit_function()] $[expects_function()] struct Point\n\
+		 const func expects_function(target: meta.Function): meta.Function = target\n\
+		 @emit_function() @expects_function() struct Point\n\
 		 func main(): void = { let value: int = generated() }";
 	let diagnostics = check_project("main", &loader(FxHashMap::from_iter([("main", source)])));
-	let diagnostic = diagnostics
-		.iter()
-		.find(|diagnostic| diagnostic.diag.message.contains("expects `meta.Function`"))
-		.unwrap_or_else(|| panic!("missing original-target mismatch: {diagnostics:?}"));
 	assert!(
-		diagnostic
-			.diag
-			.labels
-			.iter()
-			.any(|label| label.message.contains("target is Struct")),
-		"missing original target label: {diagnostic:?}"
-	);
-	assert!(
-		!diagnostics
-			.iter()
-			.any(|diagnostic| diagnostic.diag.message.contains("generated")
-				&& diagnostic.diag.code != "META001"),
-		"the successful sibling output was not retained: {diagnostics:?}"
+		diagnostics.is_empty(),
+		"unexpected diagnostics: {diagnostics:?}"
 	);
 }
 
@@ -826,7 +923,7 @@ fn attached_macros_accept_alias_narrow_targets() {
 	let files = FxHashMap::from_iter([(
 		"main",
 		"const func inspect_alias(target: meta.TypeAlias): meta.Tokens = \\()\n\
-		 $[inspect_alias()] type Count = int\n\
+		 @extend(inspect_alias()) type Count = int\n\
 		 func main(): void = {}",
 	)]);
 	let diagnostics = check_project("main", &loader(files));
@@ -841,7 +938,7 @@ fn attached_macro_target_mismatch_is_reported_before_execution() {
 	let files = FxHashMap::from_iter([(
 		"main",
 		"const func only_struct(target: meta.Struct): meta.Tokens = \\($(target))\n\
-		 $[only_struct()] func main(): void = {}",
+		 @only_struct() func main(): void = {}",
 	)]);
 	let diagnostics = check_project("main", &loader(files));
 	assert!(
@@ -886,14 +983,14 @@ fn const_let_is_evaluated_even_when_nothing_references_it() {
 }
 
 #[test]
-fn stacked_attachment_output_follows_source_order_after_the_original() {
+fn later_extends_insert_before_peers_from_earlier_macros() {
 	let files = FxHashMap::from_iter([(
 		"main",
 		"const func first(target: meta.Struct): meta.Tokens = \
 		\\(func attachment_source_order_first_marker(): int = 20)\n\
 		 const func second(target: meta.Struct): meta.Tokens = \
 		\\(func attachment_source_order_second_marker(): int = 22)\n\
-		 $[first()] $[second()] struct Point(value: int)\n\
+		 @extend(first()) @extend(second()) struct Point(value: int)\n\
 		 func main(): void = {\
 		   let point = Point(value = attachment_source_order_first_marker() + attachment_source_order_second_marker())\
 		 }",
@@ -910,16 +1007,16 @@ fn stacked_attachment_output_follows_source_order_after_the_original() {
 		.find("attachment_source_order_second_marker")
 		.expect("second attachment output");
 	assert!(
-		point < first && first < second,
+		point < second && second < first,
 		"unexpected output order: {source}"
 	);
 }
 
 #[test]
-fn stacked_attachments_receive_byte_and_identity_equivalent_originals() {
+fn stacked_extends_receive_byte_and_identity_equivalent_inputs() {
 	let source = "const func first(target: meta.Struct): meta.Struct = target\n\
 		 const func second(target: meta.Struct): meta.Struct = target\n\
-		 $[first()] $[second()] struct Point(value: int)\n\
+		 @extend(first()) @extend(second()) struct Point(value: int)\n\
 		 func main(): void = {}";
 	let diagnostics = check_project("main", &loader(FxHashMap::from_iter([("main", source)])));
 	let collisions = diagnostics
@@ -936,7 +1033,7 @@ fn stacked_attachments_receive_byte_and_identity_equivalent_originals() {
 	assert_eq!(
 		collisions.len(),
 		2,
-		"each attachment must receive and re-emit the original"
+		"each extend must receive and re-emit its input"
 	);
 	assert!(
 		collisions.iter().all(|diagnostic| {
@@ -956,32 +1053,31 @@ fn stacked_attachments_receive_byte_and_identity_equivalent_originals() {
 }
 
 #[test]
-fn a_failing_attachment_does_not_hide_successful_sibling_output() {
+fn a_failing_attached_macro_stops_the_transformation_pipeline() {
 	let source = "const func reject(target: meta.Struct): Result<meta.Tokens, meta.Diagnostic> = \
-		 Error(error = meta.Diagnostic(message = \"independent failure\", span = target.span))\n\
+		 Error(error = meta.Diagnostic(message = \"pipeline failure\", span = target.span))\n\
 		 const func emit(target: meta.Struct): meta.Tokens = \\(func generated(): int = 42)\n\
-		 $[reject()] $[emit()] struct Point\n\
+		 @reject() @emit() struct Point\n\
 		 func main(): void = { let value: int = generated() }";
 	let diagnostics = check_project("main", &loader(FxHashMap::from_iter([("main", source)])));
 	assert!(
 		diagnostics
 			.iter()
-			.any(|diagnostic| diagnostic.diag.message == "independent failure"),
+			.any(|diagnostic| diagnostic.diag.message == "pipeline failure"),
 		"missing attachment failure: {diagnostics:?}"
 	);
 	assert!(
-		!diagnostics
+		diagnostics
 			.iter()
-			.any(|diagnostic| diagnostic.diag.message.contains("generated")
-				&& diagnostic.diag.message != "independent failure"),
-		"successful sibling output was lost: {diagnostics:?}"
+			.any(|diagnostic| diagnostic.diag.message.contains("cannot find `generated`")),
+		"later macros ran after a pipeline failure: {diagnostics:?}"
 	);
 }
 
 #[test]
 fn reemitting_an_attached_target_reports_a_provenance_labeled_collision() {
 	let source = "const func duplicate(target: meta.Struct): meta.Struct = target\n\
-		 $[duplicate()] struct Point\n\
+		 @extend(duplicate()) struct Point\n\
 		 func main(): void = {}";
 	let diagnostics = check_project("main", &loader(FxHashMap::from_iter([("main", source)])));
 	let diagnostic = diagnostics
@@ -1082,8 +1178,8 @@ fn external_declarations_expose_typed_function_and_let_variants() {
 		   meta.ExternalDeclaration.Function(value = function) -> Error(error = meta.Diagnostic(message = \"saw external function\", span = function.span)),\
 		   meta.ExternalDeclaration.Let(value = let_) -> Error(error = meta.Diagnostic(message = \"saw external let\", span = let_.span)),\
 		 }\n\
-		 $[inspect()] external(host_value) let value: int\n\
-		 $[inspect()] external(host_call) func call(value: int): int\n\
+		 @extend(inspect()) external(host_value) let value: int\n\
+		 @extend(inspect()) external(host_call) func call(value: int): int\n\
 		 func main(): void = {}",
 	)]);
 	let diagnostics = check_project("main", &loader(files));

@@ -2631,6 +2631,7 @@ mod tests {
 		let module = Module {
 			members: Vec::new(),
 			path: "consumer.hoopoe".into(),
+			attributes: Vec::new(),
 		};
 		let dependency = ModuleIdentity {
 			origin: ModuleOrigin::Project("test".into()),
@@ -2674,6 +2675,7 @@ mod tests {
 		let module = Module {
 			members: Vec::new(),
 			path: "consumer.hoopoe".into(),
+			attributes: Vec::new(),
 		};
 		let dependency = ModuleIdentity {
 			origin: ModuleOrigin::Project("test".into()),
@@ -2746,6 +2748,7 @@ mod tests {
 		let module = Module {
 			members: Vec::new(),
 			path: "consumer.hoo".into(),
+			attributes: Vec::new(),
 		};
 		let dependency = ModuleIdentity {
 			origin: ModuleOrigin::Project("test".into()),

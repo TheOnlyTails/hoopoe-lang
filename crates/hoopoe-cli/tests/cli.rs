@@ -231,7 +231,7 @@ fn expand_applies_direct_nested_and_independent_attached_macros() {
 		 const func value(): meta.Tokens = \\(42)\n\
 		 const func first(target: meta.Struct): meta.Tokens = \\(func first_helper(): int = 20)\n\
 		 const func second(target: meta.Struct): meta.Tokens = \\(func second_helper(): int = 22)\n\
-		 $[first()] $[second()] struct Point(value: $(integer()))\n\
+		 @extend(first()) @extend(second()) struct Point(value: $(integer()))\n\
 		 func answer(): int = $(value())\n",
 	);
 	let output = hoopoe_in(&["expand", "main"], &root);
@@ -245,7 +245,7 @@ fn expand_applies_direct_nested_and_independent_attached_macros() {
 	assert!(point < first && first < second, "{}", output.stdout);
 	assert!(!output.stdout.contains("const func"));
 	assert!(!output.stdout.contains("$("));
-	assert!(!output.stdout.contains("$["));
+	assert!(!output.stdout.contains("@extend"));
 	std::fs::remove_dir_all(root).unwrap();
 }
 

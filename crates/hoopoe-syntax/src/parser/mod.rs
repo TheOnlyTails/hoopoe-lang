@@ -16,7 +16,7 @@ use cursor::TokenCursor;
 use ecow::EcoString;
 use hoopoe_ast::{
 	Ident, NodeId, Span, Spanned,
-	decl::Module,
+	decl::{Module, SyntaxAttribute},
 	expr::{Expr, ExprKind},
 	token::Token,
 };
@@ -37,6 +37,7 @@ pub struct Parser<'src> {
 	diagnostics: Vec<Diagnostic>,
 	incomplete: bool,
 	next_id: u32,
+	attributes: Vec<SyntaxAttribute>,
 }
 
 /// The result of parsing: the (best-effort) tree plus every diagnostic encountered.
@@ -97,6 +98,7 @@ pub fn parse_module_tokens_from_with_ranges(
 			tree: Module {
 				members,
 				path: module_path.into(),
+				attributes: parser.attributes,
 			},
 			diagnostics: parser.diagnostics,
 			incomplete: parser.incomplete,
@@ -146,7 +148,45 @@ impl<'src> Parser<'src> {
 			diagnostics: Vec::new(),
 			incomplete: true,
 			next_id: 0,
+			attributes: Vec::new(),
 		}
+	}
+
+	fn at_metadata_attribute(&self) -> bool {
+		self.check(&Token::At)
+			&& matches!(self.peek_nth(1), Some(Token::Identifier(_)))
+			&& self.peek_nth(2) == Some(&Token::Dot)
+			&& matches!(self.peek_nth(3), Some(Token::Identifier(_)))
+			&& self.peek_nth(4) == Some(&Token::Eq)
+	}
+
+	fn parse_metadata_attributes(&mut self) -> Vec<(Ident, Ident, Expr)> {
+		let mut attributes = Vec::new();
+		while self.at_metadata_attribute() {
+			self.advance();
+			let namespace = self.expect_ident();
+			self.expect(&Token::Dot);
+			let option = self.expect_ident();
+			self.expect(&Token::Eq);
+			let value = self.parse_expr();
+			attributes.push((namespace, option, value));
+		}
+		attributes
+	}
+
+	fn record_metadata_attributes(&mut self, attributes: Vec<(Ident, Ident, Expr)>, target: Span) {
+		self
+			.attributes
+			.extend(
+				attributes
+					.into_iter()
+					.map(|(namespace, option, value)| SyntaxAttribute {
+						namespace,
+						option,
+						value,
+						target,
+					}),
+			);
 	}
 
 	/// Build a self-spanned expression, assigning the next fresh node id.

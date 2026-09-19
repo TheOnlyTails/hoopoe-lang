@@ -224,6 +224,12 @@ struct Hints {
 impl Hints {
 	fn module(source: &str, module: &Module) -> Self {
 		let mut hints = Self::default();
+		for attribute in &module.attributes {
+			if let Some(at) = source[..attribute.namespace.1.start].rfind('@') {
+				hints.line_before.insert(at);
+			}
+			hints.visit_expr(source, &attribute.value, true);
+		}
 		for declaration in &module.members {
 			hints.visit_declaration(source, declaration);
 		}

@@ -136,7 +136,7 @@ mod tests {
 		let result = run_compile(
 			"const func first(target: meta.Struct): meta.Tokens = \\(func first_helper(): int = 20)\n\
 			 const func second(target: meta.Struct): meta.Tokens = \\(func second_helper(): int = 22)\n\
-			 $[first()] $[second()] struct Point(value: int)\n",
+			 @extend(first()) @extend(second()) struct Point(value: int)\n",
 		);
 
 		assert!(
@@ -158,7 +158,7 @@ mod tests {
 	fn attached_redeclaration_diagnostics_keep_expansion_labels() {
 		let result = run_check(
 			"const func duplicate(target: meta.Struct): meta.Struct = target\n\
-			 $[duplicate()] struct Point\n",
+			 @extend(duplicate()) struct Point\n",
 		);
 		let diagnostic = result
 			.diagnostics

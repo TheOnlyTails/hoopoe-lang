@@ -13,6 +13,18 @@ use crate::{
 pub struct Module {
 	pub members: Vec<Declaration>,
 	pub path: EcoString,
+	/// Compile-time metadata attached to syntax nodes in this module.
+	pub attributes: Vec<SyntaxAttribute>,
+}
+
+/// One `@namespace.option = value` annotation. The parser associates it with
+/// the complete span of the syntax node that immediately follows it.
+#[derive(Debug, Clone, PartialEq, salsa::SalsaValue)]
+pub struct SyntaxAttribute {
+	pub namespace: Ident,
+	pub option: Ident,
+	pub value: Expr,
+	pub target: crate::Span,
 }
 
 #[derive(Debug, Clone, PartialEq, salsa::SalsaValue)]
@@ -20,11 +32,13 @@ pub enum Declaration {
 	/// `$(expression)` in declaration position. Expansion replaces this item
 	/// before ordinary module consumers run.
 	Expansion(Expr),
-	/// One or more additive `$[call(...)]` macros attached to `target`.
-	/// Calls are stored and execute independently in source order.
+	/// One or more `@call(...)` macros attached to `target`.
+	/// Calls transform the first declaration returned by the previous call in
+	/// source order. `@extend(call(...))` retains the input before the call's
+	/// generated peers.
 	Attached {
 		macros: Vec<Expr>,
-		/// Original target tokens supplied unchanged to every attached call.
+		/// Original target tokens supplied to the first attached call.
 		target_tokens: Vec<Spanned<crate::token::Token>>,
 		target: Box<Declaration>,
 	},

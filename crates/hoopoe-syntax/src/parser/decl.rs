@@ -50,6 +50,22 @@ impl Parser<'_> {
 	}
 
 	fn parse_declaration(&mut self) -> Option<Declaration> {
+		if self.at_metadata_attribute() {
+			let attributes = self.parse_metadata_attributes();
+			let target_start = self.position();
+			let target = self.parse_declaration()?;
+			let target_span = match &target {
+				Declaration::Attached { target_tokens, .. } => {
+					target_tokens.first().zip(target_tokens.last()).map_or_else(
+						|| self.span_from(target_start),
+						|(first, last)| first.1.to(last.1),
+					)
+				}
+				_ => self.span_from(target_start),
+			};
+			self.record_metadata_attributes(attributes, target_span);
+			return Some(target);
+		}
 		if self.at_expansion() {
 			let expansion = self.parse_expr();
 			let ExprKind::Expansion(value) = expansion.kind else {
@@ -57,13 +73,11 @@ impl Parser<'_> {
 			};
 			return Some(Declaration::Expansion(*value));
 		}
-		if self.check(&Token::Dollar) && self.peek_nth(1) == Some(&Token::LBracket) {
+		if self.check(&Token::At) {
 			let mut macros = Vec::new();
-			while self.check(&Token::Dollar) && self.peek_nth(1) == Some(&Token::LBracket) {
-				self.advance();
+			while self.check(&Token::At) && !self.at_metadata_attribute() {
 				self.advance();
 				macros.push(self.parse_expr());
-				self.expect(&Token::RBracket);
 			}
 			let target_start = self.position();
 			let target = self.parse_declaration()?;
@@ -307,19 +321,22 @@ impl Parser<'_> {
 	}
 
 	fn parse_func_param(&mut self) -> Spanned<FuncParam> {
+		let attributes = self.parse_metadata_attributes();
 		let start = self.position();
 		let spread = self.eat(&Token::DotDotDot).is_some();
 		let name = self.parse_binding_pattern();
 		self.expect(&Token::Colon);
 		let type_ = self.parse_type();
-		Spanned(
+		let parameter = Spanned(
 			FuncParam {
 				name,
 				type_,
 				spread,
 			},
 			self.span_from(start),
-		)
+		);
+		self.record_metadata_attributes(attributes, parameter.1);
+		parameter
 	}
 
 	fn parse_func_decl(
@@ -424,6 +441,7 @@ impl Parser<'_> {
 	}
 
 	fn parse_struct_field(&mut self) -> Spanned<StructField> {
+		let attributes = self.parse_metadata_attributes();
 		let start = self.position();
 		let visibility = self.parse_visibility();
 		let name = self.expect_ident();
@@ -434,7 +452,7 @@ impl Parser<'_> {
 		} else {
 			None
 		};
-		Spanned(
+		let field = Spanned(
 			StructField {
 				visibility,
 				name,
@@ -442,7 +460,9 @@ impl Parser<'_> {
 				default,
 			},
 			self.span_from(start),
-		)
+		);
+		self.record_metadata_attributes(attributes, field.1);
+		field
 	}
 
 	fn parse_enum(&mut self, visibility: Option<Visibility>) -> Declaration {
@@ -455,7 +475,11 @@ impl Parser<'_> {
 		let mut variants = Vec::new();
 		// Enum entries come first. `...Source` embeds a complete view;
 		// `Source.Variant` embeds one source-owned variant.
-		while self.check(&Token::DotDotDot) || matches!(self.peek(), Some(Token::Identifier(_))) {
+		while self.at_metadata_attribute()
+			|| self.check(&Token::DotDotDot)
+			|| matches!(self.peek(), Some(Token::Identifier(_)))
+		{
+			let attributes = self.parse_metadata_attributes();
 			let start = self.position();
 			if self.eat(&Token::DotDotDot).is_some() {
 				let source = self.expect_ident();
@@ -493,6 +517,7 @@ impl Parser<'_> {
 					));
 				}
 			}
+			self.record_metadata_attributes(attributes, self.span_from(start));
 			if self.eat(&Token::Comma).is_none() {
 				break;
 			}

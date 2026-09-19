@@ -2,10 +2,10 @@
 // compiler supplies their values and operations; this module supplies the
 // ordinary Hoopoe type surface used by const signatures.
 //
-// `$[...]` macros are additive: each independently receives the same original
-// typed declaration, while the compiler retains that declaration exactly once
-// and appends generated peers in attachment source order. Direct `$()`
-// expansion is the syntax for replacing or removing source.
+// `@macro(...)` transforms the following declaration. Attached macros run from
+// top to bottom, with each call receiving the first declaration emitted by the
+// previous call. `@extend(macro(...))` retains that declaration and appends the
+// wrapped macro's output as peers.
 
 public enum SyntaxContext {
   Source,
@@ -235,3 +235,6 @@ public enum Declaration {
   TypeAlias(value: TypeAlias),
   External(value: ExternalDeclaration),
 }
+
+public const func extend(target: Declaration, generated: Tokens): Tokens =
+  target.tokens() + generated

@@ -11,12 +11,14 @@
 //! `std::` module-key prefix (`import std/io` → provider path `"io"`,
 //! `import std/collections/tree` → `"collections/tree"`).
 
-/// One embedded `std` module: its provider path and `include_str!`-embedded
-/// source. Add a row here when a stdlib module becomes reachable via
-/// `import std/…` (i.e. it is NOT in `prelude::CORE_SOURCES`).
+/// The metadata module also supplies ambient compile-time helpers.
+pub(crate) const META_SOURCE: &str = include_str!("../../../stdlib/src/meta.hoo");
+
+/// Embedded `std` modules keyed by their provider paths. Add a row here when a
+/// module becomes reachable through `import std/…`.
 const STD_SOURCES: &[(&str, &str)] = &[
 	("io", include_str!("../../../stdlib/src/io.hoo")),
-	("meta", include_str!("../../../stdlib/src/meta.hoo")),
+	("meta", META_SOURCE),
 	(
 		"collections/set",
 		include_str!("../../../stdlib/src/collections/set.hoo"),

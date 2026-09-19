@@ -15,6 +15,7 @@ use super::Parser;
 impl Parser<'_> {
 	/// Parse a full type, including `+` intersections (the lowest-precedence form).
 	pub(super) fn parse_type(&mut self) -> Spanned<Type> {
+		let attributes = self.parse_metadata_attributes();
 		let start = self.position();
 		let mut lhs = self.parse_type_primary();
 		while self.check(&Token::Plus) && self.peek_nth(1) != Some(&Token::Bang) {
@@ -23,6 +24,7 @@ impl Parser<'_> {
 			let span = self.span_from(start);
 			lhs = Spanned(Type::Intersection(Box::new(lhs), Box::new(rhs)), span);
 		}
+		self.record_metadata_attributes(attributes, lhs.1);
 		lhs
 	}
 

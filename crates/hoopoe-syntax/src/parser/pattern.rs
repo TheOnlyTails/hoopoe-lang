@@ -17,6 +17,7 @@ use super::Parser;
 impl Parser<'_> {
 	/// Parse a full pattern, including `|` unions (the lowest-precedence form).
 	pub(super) fn parse_pattern(&mut self) -> Spanned<Pattern> {
+		let attributes = self.parse_metadata_attributes();
 		let start = self.position();
 		let mut lhs = self.parse_range_pattern();
 		while self.check(&Token::Pipe) {
@@ -27,6 +28,7 @@ impl Parser<'_> {
 				self.span_from(start),
 			);
 		}
+		self.record_metadata_attributes(attributes, lhs.1);
 		lhs
 	}
 
