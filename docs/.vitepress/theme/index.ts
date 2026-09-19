@@ -1,11 +1,11 @@
 import DefaultTheme from "vitepress/theme";
 import type { Theme } from "vitepress";
-import NymphDebugger from "./components/NymphDebugger.vue";
+import HoopoeDebugger from "./components/HoopoeDebugger.vue";
 import "./theme.css";
 
 export default {
 	extends: DefaultTheme,
 	enhanceApp({ app }) {
-		app.component("NymphDebugger", NymphDebugger);
+		app.component("HoopoeDebugger", HoopoeDebugger);
 	},
 } satisfies Theme;

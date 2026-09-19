@@ -1,42 +1,42 @@
 [workspace]
 resolver = "3"
 members = [
-	"crates/nymph-ast",
-	"crates/nymph-diagnostics",
-	"crates/nymph-errorcode",
-	"crates/nymph-syntax",
-	"crates/nymph-format",
-	"crates/nymph-hir",
-	"crates/nymph-sema",
-	"crates/nymph-codegen",
+	"crates/hoopoe-ast",
+	"crates/hoopoe-diagnostics",
+	"crates/hoopoe-errorcode",
+	"crates/hoopoe-syntax",
+	"crates/hoopoe-format",
+	"crates/hoopoe-hir",
+	"crates/hoopoe-sema",
+	"crates/hoopoe-codegen",
 	# Added layer by layer as each crate is built:
-	"crates/nymph-compiler",
-	"crates/nymph-project",
-	"crates/nymph-cli",
-	"crates/nymph-lsp",
-	"crates/nymph-wasm",
+	"crates/hoopoe-compiler",
+	"crates/hoopoe-project",
+	"crates/hoopoe-cli",
+	"crates/hoopoe-lsp",
+	"crates/hoopoe-wasm",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
-homepage = "https://nymphlang.dev/"
-repository = "https://github.com/theonlytails/nymph_lang"
+homepage = "https://hoopoelang.dev/"
+repository = "https://github.com/theonlytails/hoopoe_lang"
 authors = ["Shachar Zidon <theonlytails@theonlytails.com>"]
 
 [workspace.dependencies]
 # Internal crates
-nymph-ast = { path = "crates/nymph-ast" }
-nymph-diagnostics = { path = "crates/nymph-diagnostics" }
-nymph-errorcode = { path = "crates/nymph-errorcode" }
-nymph-syntax = { path = "crates/nymph-syntax" }
-nymph-format = { path = "crates/nymph-format" }
-nymph-hir = { path = "crates/nymph-hir" }
-nymph-sema = { path = "crates/nymph-sema" }
-nymph-codegen = { path = "crates/nymph-codegen" }
-nymph-compiler = { path = "crates/nymph-compiler" }
-nymph-project = { path = "crates/nymph-project" }
+hoopoe-ast = { path = "crates/hoopoe-ast" }
+hoopoe-diagnostics = { path = "crates/hoopoe-diagnostics" }
+hoopoe-errorcode = { path = "crates/hoopoe-errorcode" }
+hoopoe-syntax = { path = "crates/hoopoe-syntax" }
+hoopoe-format = { path = "crates/hoopoe-format" }
+hoopoe-hir = { path = "crates/hoopoe-hir" }
+hoopoe-sema = { path = "crates/hoopoe-sema" }
+hoopoe-codegen = { path = "crates/hoopoe-codegen" }
+hoopoe-compiler = { path = "crates/hoopoe-compiler" }
+hoopoe-project = { path = "crates/hoopoe-project" }
 
 # Shared external dependencies (proven set carried over from the previous implementation)
 anyhow = "1.0.104"

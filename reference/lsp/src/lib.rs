@@ -7,4 +7,4 @@ pub mod server;
 pub mod symbols;
 pub mod workspace;
 
-pub use server::NymphLanguageServer;
+pub use server::HoopoeLanguageServer;

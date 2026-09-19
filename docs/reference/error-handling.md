@@ -1,7 +1,7 @@
 # Error handling
 
-Nymph has **no exceptions** and **no `null`**. A value that might be absent, or an
-operation that might fail, says so *in its type* — with `Option<T>` or
+Hoopoe has **no exceptions** and **no `null`**. A value that might be absent, or an
+operation that might fail, says so _in its type_ — with `Option<T>` or
 `Result<T, E>` — and the caller is made to deal with the empty/failing case before it
 can reach the value. Both types live in the always-available prelude
 ([ambient core](./declarations#imports)), so they need no `import`.
@@ -17,7 +17,7 @@ target with `None`. For `Result<T, E>`, `Ok(value)` produces `value` and `Error(
 target with that same error. The target must produce the same family, and `Result` error types must match
 exactly; the success types may differ.
 
-```nym
+```hoo
 struct Task(title: string)
 
 func title(task: Option<Task>): Option<string> = {
@@ -36,7 +36,7 @@ Propagation never converts between `Option` and `Result`; use `.ok()`, `.err()`,
 It can target a labeled block, loop, or callable with `value?@label`, following the same
 lexical label rules as `break@label`:
 
-```nym
+```hoo
 func label_example(value: Option<int>): Option<string> = target@{
   let value = value?@target
   Some("${value}")
@@ -48,7 +48,7 @@ func label_example(value: Option<int>): Option<string> = target@{
 `Option<T>` is either `Some(value)` — a present `T` — or `None`. It's how a function
 signals "there might not be an answer" without reaching for a sentinel value.
 
-```nym
+```hoo
 struct Task(title: string, done: boolean)
 
 func first_open(a: Task, b: Task): Option<Task> =
@@ -65,7 +65,7 @@ func first_open(a: Task, b: Task): Option<Task> =
 
 The most direct way is `match` — every case is spelled out, so nothing is skipped:
 
-```nym
+```hoo
 func or_zero(o: Option<int>): int = match (o) {
   Some(value) -> value,
   None -> 0,
@@ -75,7 +75,7 @@ func or_zero(o: Option<int>): int = match (o) {
 For a one-off "is it there?" test without a full `match`, use
 [`is`](./expressions#as-and-is):
 
-```nym
+```hoo
 func present(o: Option<int>): boolean = o is Some(...)
 ```
 
@@ -86,7 +86,7 @@ hand. `map` applies a function to the `Some` value (and leaves `None` untouched)
 `filter` keeps a `Some` only when a predicate holds; `and_then` chains another
 `Option`-returning step; `or` supplies a fallback `Option`.
 
-```nym
+```hoo
 func inc(o: Option<int>): Option<int> = o.map((x: int) -> x + 1)
 
 func keep_even(o: Option<int>): Option<int> = o.filter((x: int) -> x % 2 == 0)
@@ -105,14 +105,14 @@ These shine with [anonymous-parameter closures](./expressions#anonymous-closure-
 `??` (the [`Unwrap`](./operators#unwrap) operator) collapses an `Option` to a plain
 value by giving the `None` case a fallback:
 
-```nym
+```hoo
 func title_or(o: Option<string>): string = o ?? "untitled"
 ```
 
 `unwrap_or_else` does the same but computes the fallback lazily from a closure, and
 `unwrap_or_default` uses the element type's `Default` when it has one.
 
-```nym
+```hoo
 func or_compute(o: Option<int>): int = o.unwrap_or_else(() -> 0)
 ```
 
@@ -120,9 +120,9 @@ func or_compute(o: Option<int>): int = o.unwrap_or_else(() -> 0)
 
 `Result<T, E>` is either `Ok(value)` — success carrying a `T` — or `Error(error)` —
 failure carrying an `E` explaining what went wrong. Reach for it (over `Option`) when
-the *reason* for a failure matters.
+the _reason_ for a failure matters.
 
-```nym
+```hoo
 enum Priority { Low, Medium, High }
 
 func from_code(n: int): Result<Priority, string> = match (n) {
@@ -140,7 +140,7 @@ func from_code(n: int): Result<Priority, string> = match (n) {
 
 `match` handles the two variants explicitly:
 
-```nym
+```hoo
 func describe(r: Result<int, string>): string = match (r) {
   Ok(value) -> "ok: ${value}",
   Error(error) -> "failed: ${error}",
@@ -154,7 +154,7 @@ another fallible step, short-circuiting on the first `Error`. This is how a pipe
 of fallible operations composes without any early-return syntax — each `and_then`
 runs only if the previous step succeeded.
 
-```nym
+```hoo
 func step(n: int): Result<int, string> =
   if (n > 0) { Ok(n - 1) } else { Error("hit zero") }
 
@@ -162,7 +162,7 @@ func run(start: int): Result<int, string> =
   Ok(start).and_then(step).and_then(step)
 ```
 
-```nym
+```hoo
 struct Fail(code: int)
 func wrap_err(r: Result<int, int>): Result<int, Fail> =
   r.map_err((c: int) -> Fail(code = c))
@@ -170,7 +170,7 @@ func wrap_err(r: Result<int, int>): Result<int, Fail> =
 
 `??` supplies a fallback for the `Error` case, exactly as it does for `Option`:
 
-```nym
+```hoo
 func value_or(r: Result<int, string>): int = r ?? -1
 ```
 
@@ -179,7 +179,7 @@ func value_or(r: Result<int, string>): int = r ?? -1
 `?.` maps a field access, method call, or index operation over the value inside an
 `Option` or the `Ok` value inside a `Result`:
 
-```nym
+```hoo
 struct User(name: string, tags: #[string]) {
   func greeting(prefix: string): string = "${prefix}, ${this.name}"
 }
@@ -199,7 +199,7 @@ Mapping does not flatten. If `user?.field` accesses a field of type `Option<T>`,
 type is `Option<Option<T>>` (and similarly for nested `Result` values). Use `flatten`
 or `and_then` when flattening is intended.
 
-Optional chaining is specific to Nymph's canonical `Option` and `Result` types. It is
+Optional chaining is specific to Hoopoe's canonical `Option` and `Result` types. It is
 not JavaScript null/undefined chaining, and applying it to another receiver type is a
 type error.
 
@@ -208,14 +208,14 @@ type error.
 A `Result` drops its error side with `.ok()` (keeping the success as an `Option`) or
 keeps only the error with `.err()`:
 
-```nym
+```hoo
 func to_option(r: Result<int, string>): Option<int> = r.ok()
 func error_of(r: Result<int, string>): Option<string> = r.err()
 ```
 
 Going the other way — attaching an error reason to a `None` — is a plain `match`:
 
-```nym
+```hoo
 func to_result(o: Option<int>): Result<int, string> = match (o) {
   Some(value) -> Ok(value),
   None -> Error("missing"),
@@ -233,6 +233,6 @@ func to_result(o: Option<int>): Result<int, string> = match (o) {
 
 Because failure is a value and never a hidden control-flow jump, a function's
 signature is the whole truth about how it can fail: a `Result<T, E>` return is the
-*only* way it reports an error, and the type system won't let a caller ignore it. See
+_only_ way it reports an error, and the type system won't let a caller ignore it. See
 [Pattern matching](./pattern-matching) for everything `match` can pull out of an
 `Option`/`Result`, and [Operators](./operators#unwrap) for `??`.

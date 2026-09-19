@@ -30,20 +30,20 @@ jobs:
         with:
           target: ${{ matrix.rust }}
       - name: Compile and run static extension tests
-        run: pnpm --filter nymph test:unit
+        run: pnpm --filter hoopoe test:unit
       - name: Check extension documentation
-        run: pnpm --filter nymph test:docs
+        run: pnpm --filter hoopoe test:docs
       - name: Cross-build language server
-        run: cargo build --release -p nymph-lsp --target ${{ matrix.rust }}
+        run: cargo build --release -p hoopoe-lsp --target ${{ matrix.rust }}
       - name: Stage matching language server
-        run: pnpm --filter nymph stage:server ${{ matrix.vscode }} ../target/${{ matrix.rust }}/release/nymph-lsp${{ startsWith(matrix.vscode, 'win32-') && '.exe' || '' }}
+        run: pnpm --filter hoopoe stage:server ${{ matrix.vscode }} ../target/${{ matrix.rust }}/release/hoopoe-lsp${{ startsWith(matrix.vscode, 'win32-') && '.exe' || '' }}
       - name: Package target VSIX
         working-directory: extension
-        run: pnpm exec vsce package --no-dependencies --target ${{ matrix.vscode }} --out nymph-${{ matrix.vscode }}.vsix
+        run: pnpm exec vsce package --no-dependencies --target ${{ matrix.vscode }} --out hoopoe-${{ matrix.vscode }}.vsix
       - name: Verify VSIX contents
         working-directory: extension
-        run: node scripts/verify-vsix.cjs nymph-${{ matrix.vscode }}.vsix ${{ matrix.vscode }}
+        run: node scripts/verify-vsix.cjs hoopoe-${{ matrix.vscode }}.vsix ${{ matrix.vscode }}
       - uses: actions/upload-artifact@v7
         with:
-          name: nymph-${{ matrix.vscode }}
-          path: extension/nymph-${{ matrix.vscode }}.vsix
+          name: hoopoe-${{ matrix.vscode }}
+          path: extension/hoopoe-${{ matrix.vscode }}.vsix

@@ -1,7 +1,7 @@
 # Issue 98: functional-iteration precedents
 
 Status: planning research, 2026-08-18. This note compares primary-source precedents; it does not
-choose Nymph's representation or change the governing design. Nymph's settled inputs are the issue
+choose Hoopoe's representation or change the governing design. Hoopoe's settled inputs are the issue
 itself and `docs/design/language-identity.md`: observable iterators are persistent, `next` returns
 successor state, lazy callback effects are latent and sequential, effects use canonical finite rows,
 general `while` is removed, cleanup covers all completion paths, and proper tail calls are guaranteed.
@@ -50,7 +50,7 @@ short-circuiting consumer stop, and ordinary function result construction replac
 monadic types. The base `bracket` contract acquires, runs an action, and releases even if the action
 raises; `finally` always runs its sequel, and `mask` is the primitive used to protect acquisition and
 cleanup from asynchronous exceptions [H3]. Those are `IO` library guarantees, not properties of list
-iteration. Haskell's report does **not** guarantee proper tail calls as Nymph defines them, nor does it
+iteration. Haskell's report does **not** guarantee proper tail calls as Hoopoe defines them, nor does it
 specify structured task cancellation.
 
 ## Clojure
@@ -93,7 +93,7 @@ or delayed effects and does not make structured cancellation or cleanup part of 
 
 **Library contract.** `Seq.t` is a delayed list. Its public observation is `uncons : 'a t ->
 ('a * 'a t) option`; the documented underlying model is a thunk producing `Nil` or `Cons (x, xs)`.
-This is the closest direct precedent for Nymph's item-plus-successor shape [O1]. The crucial contrast is
+This is the closest direct precedent for Hoopoe's item-plus-successor shape [O1]. The crucial contrast is
 that OCaml explicitly permits three behavioral classes: persistent, ephemeral, and affine. A sequence
 thunk may mutate or perform another effect. `memoize` converts either class to a persistent sequence;
 `once` dynamically rejects a second query. A dispenser `unit -> 'a option` has hidden mutable state and
@@ -114,7 +114,7 @@ There is no built-in `break` or `continue`; recursion, predicates, short-circuit
 exception provide those outcomes. Exceptions and `try … with` own error unwinding. `Fun.protect`
 guarantees its `finally` function after normal return or exception, and documents what happens when
 both body and cleanup raise [O4]. Neither `Seq` nor the loop forms specify cancellation. Tail-call
-optimization is documented and tail-mod-cons is available, but this is narrower than Nymph's
+optimization is documented and tail-mod-cons is available, but this is narrower than Hoopoe's
 backend-independent proper-tail-call guarantee [O5].
 
 ## Scala 3
@@ -145,7 +145,7 @@ Scala has `while` and mutation. It has no loop-local `continue`; ordinary `retur
 `throw` unwinds, and `try`'s `finally` expression executes after the protected computation. Scala 3's
 `boundary`/`break` offers typed nonlocal early return and is implemented by exceptions when it cannot
 be optimized to labels [S5]. Those are general control facilities, not iterator cleanup. Standard
-`Future` has no general cancellation contract [S6]. Scala also does not promise Nymph-style proper
+`Future` has no general cancellation contract [S6]. Scala also does not promise Hoopoe-style proper
 tail calls: `@tailrec` verifies optimizable direct recursion, and other recursion can consume stack
 [S7].
 
@@ -163,7 +163,7 @@ Koka is the strongest effect precedent. An adapter callback has an effect-polymo
 combinator carries that same open row, e.g. `map(xs, f : a -> e b) : e list<b>` and effect-polymorphic
 `foldr` [K2]. Effects are therefore neither hidden nor “stored inside” a lazy sequence in this API:
 they occur during the eager call and appear in its result effect. Koka rows are open, polymorphic, and
-can include effects such as `exn`, `div`, state, and I/O. This supports Nymph's propagation goal but is
+can include effects such as `exn`, `div`, state, and I/O. This supports Hoopoe's propagation goal but is
 not a precedent for a canonical **finite latent** row attached to a persistent iterator.
 
 ### Control and cleanup
@@ -177,9 +177,9 @@ lowering hook.
 Koka's `finally` handling is unusually relevant: automatic finalization is tied to resumption
 contexts, including operations that do not resume or resume multiple times; `raw ctl` opts out and
 makes finalization the programmer's responsibility [K2]. It is stronger than ordinary exception-only
-`finally`, but the cited material does not specify Nymph's structured task cancellation/join protocol.
+`finally`, but the cited material does not specify Hoopoe's structured task cancellation/join protocol.
 Koka's `div` effect makes possible nontermination visible, but its documentation does not establish
-Nymph's broad proper-tail-call guarantee.
+Hoopoe's broad proper-tail-call guarantee.
 
 ## Gleam (stdlib 0.38 iterator)
 
@@ -209,7 +209,7 @@ failure [G2].
 **Language.** Gleam has no loops; official guidance says iteration uses top-level recursion, with
 stdlib functions covering common patterns and manual recursion for complex ones [G3]. Tail calls are
 optimized on both Erlang and JavaScript targets, but the language tour advises tail recursion rather
-than specifying Nymph's full mutual/higher-order/dynamic PTC scope [G4]. Gleam `use` is callback
+than specifying Hoopoe's full mutual/higher-order/dynamic PTC scope [G4]. Gleam `use` is callback
 inversion syntax, not a for-comprehension protocol; the old iterator's `yield` used it as a library
 convenience [G1, G5].
 
@@ -230,25 +230,25 @@ cleanup occurs on a particular target.
 | Koka       | Immutable `list` head/tail; no universal lazy iterator ABI cited                                | Eager combinators; callback effect propagated in open effect row                              | `foldl`/`foldr`, `foreach`                             | Library combinators, recursion; handlers own advanced control          | Typed handler exits; resumption-aware finalization; structured cancellation unspecified               | Recursion, effect-polymorphic maps/folds/foreach              |
 | Gleam 0.38 | Opaque iterator; `Step(item, successor)` or `Done`                                              | Lazy; effects delayed but untracked                                                           | `fold`, `try_fold`, `to_list`, `run`                   | No loop/comprehension; library + recursion; `use` only callback syntax | `Result`/short-circuit/base case; panic not recovery; cleanup/cancellation unspecified                | Tail recursion and stdlib combinators                         |
 
-## Design lessons and constraints for Nymph
+## Design lessons and constraints for Hoopoe
 
 These constrain the issue; they intentionally do not select a final HIR or ABI.
 
 1. **An item-plus-successor sum is established, but persistence needs a semantic promise.** OCaml
    `uncons` and Gleam `step` validate `Done | Next(item, successor)`. OCaml also demonstrates that the
-   same shape can hide affine effects. Nymph must make persistence/replay obligations explicit rather
+   same shape can hide affine effects. Hoopoe must make persistence/replay obligations explicit rather
    than infer them from the return shape.
 2. **Separate managed external streams from persistent values.** Clojure's persistent wrapper over a
    one-pass `Iterable` and OCaml's dispensers show why a persistent-looking handle is insufficient.
-   This supports Nymph's settled rule that file/network streams are managed resources, not ordinary
+   This supports Hoopoe's settled rule that file/network streams are managed resources, not ordinary
    persistent iterators.
 3. **Latent effects need both timing and typing.** Haskell distinguishes pure mapping from monadic
    traversal; Koka precisely propagates callback effects but eagerly; Scala/Clojure/OCaml/Gleam delay
-   unchecked effects and must document purity caveats. None supplies Nymph's exact combination of a
-   persistent lazy successor and canonical finite latent effect row. Nymph must specify when the row
+   unchecked effects and must document purity caveats. None supplies Hoopoe's exact combination of a
+   persistent lazy successor and canonical finite latent effect row. Hoopoe must specify when the row
    is attached, when callbacks run, replay behavior, and left-to-right ordering.
 4. **Do not let surface sugar accidentally delegate core semantics.** Haskell gives a fixed list
-   translation; Scala delegates to receiver methods; Clojure uses macros. Nymph must decide whether
+   translation; Scala delegates to receiver methods; Clojure uses macros. Hoopoe must decide whether
    `for` lowering targets canonical iterator HIR or open method names. Its settled sequential order,
    effects, cleanup, and diagnostics favor recording those facts before backend lowering, regardless
    of surface desugaring.
@@ -256,24 +256,24 @@ These constrain the issue; they intentionally do not select a final HIR or ABI.
    transformation from forcing. Terminals should state finiteness requirements, exact order,
    short-circuit points, result/error shape, and whether abandoned successor state requires cleanup.
 6. **Model early completion once.** Guards/filter are `continue`-like; `take`, short-circuit predicates,
-   `reduced`, `try_fold`, base cases, and typed handler exits are `break`-like. Nymph's `for`, `?`,
+   `reduced`, `try_fold`, base cases, and typed handler exits are `break`-like. Hoopoe's `for`, `?`,
    `break`, panic, and cancellation should converge on explicit completion forms rather than ad-hoc
    adapter flags, so the same completion can trigger settled reverse lexical cleanup.
 7. **Cleanup cannot be copied from ordinary collection libraries.** Haskell `bracket`, OCaml
    `Fun.protect`, Scala `finally`, and Koka resumption finalization cover different unwind sets. None
-   alone covers Nymph's settled normal/`?`/`break`/panic/cancellation cleanup, suppressed defects,
+   alone covers Hoopoe's settled normal/`?`/`break`/panic/cancellation cleanup, suppressed defects,
    child cancellation, and join-after-cleanup. Iterator lowering must preserve the structured cleanup
    continuation rather than treating early exhaustion as an unobservable branch.
 8. **Private mutation is an optimization, not an ABI.** Scala demonstrates the observable aliasing
-   cost of a destructive cursor; OCaml/Gleam show a functional observation boundary. Nymph may compile
+   cost of a destructive cursor; OCaml/Gleam show a functional observation boundary. Hoopoe may compile
    a uniquely consumed successor chain to private mutation only if aliasing, replay, effect count,
    cleanup, and diagnostics remain observationally identical.
 9. **Removing `while` requires an ergonomic state-carrying path.** Across the functional-first set,
    the replacement is recursion plus folds/maps, with Clojure's `loop`/`recur` as the clearest explicit
-   state-threading form. Nymph needs folds and shadowing for accumulation and `for` for traversal and
+   state-threading form. Hoopoe needs folds and shadowing for accumulation and `for` for traversal and
    early exits; complex state machines must remain expressible without public mutation.
 10. **Tail calls and cleanup constrain lowering together.** Clojure verifies `recur`, OCaml/Gleam
-    optimize tail recursion, and Scala verifies a narrow direct case; none establishes Nymph's settled
+    optimize tail recursion, and Scala verifies a narrow direct case; none establishes Hoopoe's settled
     broad PTC guarantee. A loop lowering must not silently consume the tail position or skip pending
     cleanup. Tail calls with lexical resources may need the already-anticipated cleanup continuation.
 
@@ -352,7 +352,7 @@ All URLs are official language sites, specifications, or first-party standard-li
 
 ## Gaps and cautions
 
-- No source in this set combines all of Nymph's settled properties: persistent successor state,
+- No source in this set combines all of Hoopoe's settled properties: persistent successor state,
   laziness, canonical finite latent effect rows, deterministic structured cancellation/cleanup, and
   broad proper tail calls.
 - Official sources generally specify source semantics and library behavior, not a stable machine ABI.
@@ -363,7 +363,7 @@ All URLs are official language sites, specifications, or first-party standard-li
   a current Gleam recommendation.
 - Cancellation is the least covered dimension. Haskell documents asynchronous exceptions, Scala
   documents Future's lack of cancellation, and Koka documents control/resumption finalization; none
-  specifies Nymph's task-tree cancellation, child join, and suppressed-cleanup-defect rules.
-- The cited docs do not settle whether a Nymph terminal owns iterator cleanup, whether only managed
+  specifies Hoopoe's task-tree cancellation, child join, and suppressed-cleanup-defect rules.
+- The cited docs do not settle whether a Hoopoe terminal owns iterator cleanup, whether only managed
   sources own it, or how loop HIR represents an abandoned successor. Those remain issue-98 design
-  questions constrained by Nymph's governing cleanup model.
+  questions constrained by Hoopoe's governing cleanup model.

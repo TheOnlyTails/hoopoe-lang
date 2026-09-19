@@ -1,5 +1,5 @@
-// Focused representation prototype for https://github.com/TheOnlyTails/nymph_lang/issues/86.
-// This is not destination runtime code. It compares arithmetic kernels before Nymph's common
+// Focused representation prototype for https://github.com/TheOnlyTails/hoopoe_lang/issues/86.
+// This is not destination runtime code. It compares arithmetic kernels before Hoopoe's common
 // outer NInt/NUint allocation, and uses BigInt as the correctness oracle.
 
 import { gzipSync } from "node:zlib";

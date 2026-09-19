@@ -1,9 +1,9 @@
 # Compile-time metaprogramming
 
-Nymph has one pure compile-time execution phase. `const let` requires its value to be
+Hoopoe has one pure compile-time execution phase. `const let` requires its value to be
 evaluated in that phase. `const func` may be called there and may also be emitted for
 runtime use when its signature contains only runtime-capable types. Values from
-`std/meta` are compile-time-only. Const code may use ordinary pure Nymph control flow
+`std/meta` are compile-time-only. Const code may use ordinary pure Hoopoe control flow
 and call other const-compatible code, but it cannot use effects, external functions,
 managed resources, asynchronous work, or ambient host state.
 
@@ -68,7 +68,7 @@ Code performing such a transformation explicitly parses or carries a typed
 `meta.Function`, `meta.Declaration`, or other syntax value and expands the returned
 replacement at the intended grammar position.
 
-```nymph
+```hoopoe
 const let original = meta.Function.parse(\(func answer(): int = 0))
 const func replace(function: meta.Function): meta.Function = meta.Function(
   visibility = function.visibility,
@@ -109,7 +109,7 @@ limits are diagnostics; no partial result proceeds to lowering.
 
 The canonical project query also retains the final provenance-aware token stream for
 the expanded runtime tree. Tooling renders and formats that stream rather than printing
-the internal AST. `nymph expand <module-path>` and the compiler lab's **Macro Expansion**
+the internal AST. `hoopoe expand <module-path>` and the compiler lab's **Macro Expansion**
 panel are views over this same query: they contain no separate expansion pass, expose
 no partial output after an error, and leave structured diagnostics intact for terminal,
 LSP, and browser consumers.
@@ -141,7 +141,7 @@ remain calling-convention data and are not exposed as reflection.
 
 Const evaluation, token conversion, iteration, independent attachment execution, generated
 parsing and typing, compile-time-only leakage, resource limits, cycles, and generated
-import fixed-point failures all produce the normal structured Nymph diagnostic. The
+import fixed-point failures all produce the normal structured Hoopoe diagnostic. The
 primary label identifies the failing source operation. Secondary labels identify const
 calls, the attached target and expected parameter type, and every available macro
 invocation and definition in the embedded provenance chain. The terminal uses the
@@ -158,7 +158,7 @@ handling.
 
 ## Consequences
 
-- Lexer acceptance is broader than the Nymph grammar. Printable punctuation is
+- Lexer acceptance is broader than the Hoopoe grammar. Printable punctuation is
   tokenized so macros can consume it and the parser can reject foreign syntax with a
   useful diagnostic. Existing compounds retain longest-match behavior.
 - Generated declarations pass through all normal visibility, coherence, effect,

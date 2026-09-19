@@ -1,10 +1,10 @@
 [package]
-name = "nymph-cli"
+name = "hoopoe-cli"
 description = "A simple language that gets out of your way."
 version = "0.1.0"
 edition = "2024"
-homepage = "https://nymphlang.dev/"
-repository = "https://github.com/theonlytails/nymph_lang"
+homepage = "https://hoopoelang.dev/"
+repository = "https://github.com/theonlytails/hoopoe_lang"
 license = "Apache-2.0"
 authors = ["Shachar Zidon <theonlytails@theonlytails.com>"]
 keywords = ["language", "programming-language", "parser", "lexer", "compiler"]
@@ -18,9 +18,9 @@ itertools = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 reedline = "0.46.0"
-nymph-compiler = { path = "../compiler" }
+hoopoe-compiler = { path = "../compiler" }
 ariadne = "0.6.0"
 
 [[bin]]
-name = "nymph"
+name = "hoopoe"
 path = "src/main.rs"

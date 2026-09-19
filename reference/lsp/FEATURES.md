@@ -1,8 +1,8 @@
-# Nymph Language Server - Feature Matrix
+# Hoopoe Language Server - Feature Matrix
 
 ## Overview
 
-This document details all LSP features implemented and planned for the Nymph Language Server.
+This document details all LSP features implemented and planned for the Hoopoe Language Server.
 
 ## LSP Capabilities
 
@@ -88,7 +88,7 @@ This document details all LSP features implemented and planned for the Nymph Lan
 
 #### Code Completion
 
-- Keyword completion for Nymph syntax
+- Keyword completion for Hoopoe syntax
 - Basic built-in suggestions
 
 ### 🔄 In Progress
@@ -142,14 +142,14 @@ This document details all LSP features implemented and planned for the Nymph Lan
 
 ### Keywords
 
-```nymph
+```hoopoe
 let x = 5 // 'let' is tokenized as Keyword
 func add(a: int, b: int): int = a + b // 'func' is tokenized as Keyword
 ```
 
 ### Types and Functions
 
-```nymph
+```hoopoe
 struct Point(x: float, y: float) // 'struct' is Keyword, 'Point' is Type
 
 func distance(p: Point): float = p.x + p.y
@@ -157,7 +157,7 @@ func distance(p: Point): float = p.x + p.y
 
 ### Interfaces
 
-```nymph
+```hoopoe
 interface Drawable { // 'interface' is Keyword, 'Drawable' is Interface
   func draw(): void // 'func' is Keyword, 'draw' is Function
 }

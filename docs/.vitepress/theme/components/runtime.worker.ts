@@ -6,12 +6,12 @@ type RunRequest = {
 
 type RuntimeModule = {
 	main?: () => unknown;
-	nymphStartRoot?: (
+	hoopoeStartRoot?: (
 		main: () => unknown,
 		task: boolean,
 	) => { cancel: () => void; outcome: Promise<RootOutcome> };
-	nymphRenderDefect?: (defect: unknown) => string;
-	__nymphRootEnum?: Record<string, { [key: symbol]: symbol }>;
+	hoopoeRenderDefect?: (defect: unknown) => string;
+	__hoopoeRootEnum?: Record<string, { [key: symbol]: symbol }>;
 };
 
 type RootOutcome =
@@ -30,16 +30,16 @@ self.addEventListener("message", async (event: MessageEvent<RunRequest>) => {
 	try {
 		installEchoSink();
 		const module = (await import(/* @vite-ignore */ url)) as RuntimeModule;
-		if (typeof module.main !== "function" || typeof module.nymphStartRoot !== "function") {
+		if (typeof module.main !== "function" || typeof module.hoopoeStartRoot !== "function") {
 			throw new Error("The compiler did not emit an executable root.");
 		}
-		const execution = module.nymphStartRoot(() => module.main?.(), event.data.task);
+		const execution = module.hoopoeStartRoot(() => module.main?.(), event.data.task);
 		const outcome = await execution.outcome;
 		if (outcome.tag === "cancelled") throw new Error("Execution cancelled.");
 		if (outcome.tag === "defected") {
-			throw new Error(module.nymphRenderDefect?.(outcome.defect) ?? errorMessage(outcome.defect));
+			throw new Error(module.hoopoeRenderDefect?.(outcome.defect) ?? errorMessage(outcome.defect));
 		}
-		validateRoot(outcome.value, event.data.root_kind, module.__nymphRootEnum);
+		validateRoot(outcome.value, event.data.root_kind, module.__hoopoeRootEnum);
 		self.postMessage({ type: "result", text: "completed" });
 	} catch (error) {
 		self.postMessage({ type: "runtime-error", text: errorMessage(error) });
@@ -65,24 +65,24 @@ function installEchoSink() {
 function validateRoot(
 	value: unknown,
 	kind: RunRequest["root_kind"],
-	rootEnum: RuntimeModule["__nymphRootEnum"],
+	rootEnum: RuntimeModule["__hoopoeRootEnum"],
 ) {
 	if (kind === "void") return;
 	if (!rootEnum || typeof value !== "object" || value === null) {
 		throw new TypeError(`main produced an invalid ${kind} root value`);
 	}
-	const tag = (value as { [key: symbol]: unknown })[Symbol.for("nymph.tag")];
+	const tag = (value as { [key: symbol]: unknown })[Symbol.for("hoopoe.tag")];
 	if (kind === "option") {
-		if (tag === rootEnum.None?.[Symbol.for("nymph.tag")]) throw new Error("main returned None");
-		if (tag !== rootEnum.Some?.[Symbol.for("nymph.tag")]) {
+		if (tag === rootEnum.None?.[Symbol.for("hoopoe.tag")]) throw new Error("main returned None");
+		if (tag !== rootEnum.Some?.[Symbol.for("hoopoe.tag")]) {
 			throw new TypeError("main produced an invalid Option root value");
 		}
 		return;
 	}
-	if (tag === rootEnum.Error?.[Symbol.for("nymph.tag")]) {
+	if (tag === rootEnum.Error?.[Symbol.for("hoopoe.tag")]) {
 		throw new Error(`main returned Error: ${formatValue((value as { error?: unknown }).error)}`);
 	}
-	if (tag !== rootEnum.Ok?.[Symbol.for("nymph.tag")]) {
+	if (tag !== rootEnum.Ok?.[Symbol.for("hoopoe.tag")]) {
 		throw new TypeError("main produced an invalid Result root value");
 	}
 }

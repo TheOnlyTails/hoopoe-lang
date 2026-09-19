@@ -5,7 +5,7 @@ use std::ops::Range;
 
 use crate::{
 	ast::{Spanned, declaration::Module},
-	db::{DiagnosticKind, Diagnostics, NymphDatabase, SourceFile},
+	db::{DiagnosticKind, Diagnostics, HoopoeDatabase, SourceFile},
 	queries::parse_file,
 };
 use ariadne::{Color, Label, Report, ReportBuilder, ReportKind};
@@ -29,7 +29,7 @@ pub type ParseResult<'src> = (
 );
 
 pub fn parse<'src>(filename: EcoString, source: &'src str) -> ParseResult<'src> {
-	let db = NymphDatabase::default();
+	let db = HoopoeDatabase::default();
 	let file = SourceFile::new(&db, filename.to_string(), source.to_string());
 
 	let result = parse_file(&db, file);

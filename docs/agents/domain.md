@@ -12,7 +12,7 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
 
 ## File structure
 
-This repo is **single-context** — the domain is the Nymph compiler in `crates/`. (The `pnpm-workspace.yaml` packages `docs/` and `extension/` are peripheral JS tooling, not separate bounded contexts.)
+This repo is **single-context** — the domain is the Hoopoe compiler in `crates/`. (The `pnpm-workspace.yaml` packages `docs/` and `extension/` are peripheral JS tooling, not separate bounded contexts.)
 
 ```
 /

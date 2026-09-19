@@ -30,11 +30,11 @@ use crate::{
 
 use emit::Emitter;
 
-/// Transpile a type-checked Nymph module to ES6 JavaScript.
+/// Transpile a type-checked Hoopoe module to ES6 JavaScript.
 ///
 /// `module` is the parsed AST (from the parser).
 /// `ctx` is the type-checking context (from the type checker).
-/// `source_path` is the path to the `.nym` file being compiled,
+/// `source_path` is the path to the `.hoo` file being compiled,
 /// used for resolving external declarations.
 pub fn transpile(module: &Module, ctx: &Context, source_path: Option<&Path>) -> CodegenReturn {
 	let allocator = Allocator::default();
@@ -183,8 +183,8 @@ fn project_module_path(project_root: &Path, path: &[&str]) -> Option<PathBuf> {
 		module_path = module_path.join(segment);
 	}
 
-	let file_path = module_path.with_extension("nym");
-	let dir_path = module_path.join("mod.nym");
+	let file_path = module_path.with_extension("hoo");
+	let dir_path = module_path.join("mod.hoo");
 
 	match (file_path.exists(), dir_path.exists()) {
 		(true, false) => Some(file_path),

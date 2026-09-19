@@ -1,21 +1,21 @@
 [package]
-name = "nymph-lsp"
-description = "Language Server Protocol implementation for Nymph"
+name = "hoopoe-lsp"
+description = "Language Server Protocol implementation for Hoopoe"
 version = "0.1.0"
 edition = "2024"
-homepage = "https://nymphlang.dev/"
-repository = "https://github.com/theonlytails/nymph_lang"
+homepage = "https://hoopoelang.dev/"
+repository = "https://github.com/theonlytails/hoopoe_lang"
 license = "Apache-2.0"
 authors = ["Shachar Zidon <theonlytails@theonlytails.com>"]
-keywords = ["language-server", "lsp", "nymph"]
+keywords = ["language-server", "lsp", "hoopoe"]
 categories = ["development-tools", "parser-implementations"]
 
 [[bin]]
-name = "nymph-lsp"
+name = "hoopoe-lsp"
 path = "src/main.rs"
 
 [dependencies]
-nymph-compiler = { path = "../compiler" }
+hoopoe-compiler = { path = "../compiler" }
 anyhow = { workspace = true }
 smol = { workspace = true }
 tracing = { workspace = true }

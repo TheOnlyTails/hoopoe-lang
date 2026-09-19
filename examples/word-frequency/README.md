@@ -5,7 +5,7 @@ Build a persistent word-count map and print its five most common entries.
 The example builds its counts through persistent map updates: each binding is a
 new map, while every prior map remains valid.
 
-```nym
+```hoo
 let counts: #{string: int} = #{}
 let counts = counts.inserted("the", 4)
 let counts = counts.inserted("fox", 2)

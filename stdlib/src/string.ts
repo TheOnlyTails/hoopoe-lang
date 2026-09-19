@@ -1,17 +1,17 @@
-import { NChar, NString, NUint, nymphHostIndex } from "std/box";
+import { NChar, NString, NUint, hoopoeHostIndex } from "std/box";
 import { Option } from "std/option";
 
 // `Option`-returning helpers use the named-field ABI: the compiler's
-// `Option.Some(..)` carries its payload as `{ value }` (option.nym declares
+// `Option.Some(..)` carries its payload as `{ value }` (option.hoo declares
 // `Some(value: T)`), so every `Some` below passes an object literal, mirroring
 // list.ts/map.ts. `None` is the nullary `Option.None`.
 export const length = ($_this: NString) => BigInt(Array.from($_this.v).length);
 export const char_at = ($_this: NString, i: bigint) => {
-	const char = Array.from($_this.v)[nymphHostIndex(i)];
+	const char = Array.from($_this.v)[hoopoeHostIndex(i)];
 	return char === undefined ? Option.None : Option.Some({ value: new NChar(char) });
 };
 export const substring = ($_this: NString, start: bigint, end: bigint) =>
-	new NString(Array.from($_this.v).slice(nymphHostIndex(start), nymphHostIndex(end)).join(""));
+	new NString(Array.from($_this.v).slice(hoopoeHostIndex(start), hoopoeHostIndex(end)).join(""));
 export const index_of = ($_this: NString, needle: NString) => {
 	const i = $_this.v.indexOf(needle.v);
 	return i === -1

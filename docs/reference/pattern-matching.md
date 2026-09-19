@@ -9,7 +9,7 @@ common type when the result is used as a value.
 
 Int, uint, float, char, string, and boolean literals match themselves:
 
-```nym
+```hoo
 func vowel_index(c: char): int = match (c) {
   'a' -> 1,
   'e' -> 2,
@@ -30,14 +30,14 @@ nothing. `name = pattern` also binds the whole value to `name`, while requiring 
 to match. Binding subpatterns can appear anywhere a pattern can, and can be nested to retain both a
 structured value and its parts.
 
-```nym
+```hoo
 func first_or(xs: #[int], fallback: int): int = match (xs) {
   #[] -> fallback,
   n -> n[0],
 }
 ```
 
-```nym
+```hoo
 func endpoints(pair: #(int, int)): int = match (pair) {
   whole = #(first, last) -> whole[0] + first + last,
 }
@@ -48,7 +48,7 @@ same names with the same inferred types. Names are compared by identity, not by 
 order in which they appear; put a binding around a grouped union when both alternatives should
 capture the whole value:
 
-```nym
+```hoo
 func one_or_two(n: int): int = match (n) {
   matched = (1 | 2) -> matched,
   _ -> 0,
@@ -61,7 +61,7 @@ Range patterns use the same five valid forms as [range expressions](./literals#r
 `a..b`, `a..=b`, `..b`, and `..=b`. The spelling `a..=` is invalid because an inclusive range
 requires an upper bound. A range pattern matches anything the corresponding range would contain.
 
-```nym
+```hoo
 func http_class(code: int): int = match (code) {
   200 -> 1,
   400..500 -> 3,
@@ -74,7 +74,7 @@ func http_class(code: int): int = match (code) {
 
 `A | B` matches if either sub-pattern matches — handy for grouping several literals onto one arm:
 
-```nym
+```hoo
 enum Color { Red, Green, Blue }
 func is_warm(c: Color): boolean = match (c) {
   Red | Green -> true,
@@ -88,7 +88,7 @@ inside another destructuring pattern. Unions whose alternatives bind no names re
 
 Wrap a union in parentheses when it needs to read as a single pattern in context:
 
-```nym
+```hoo
 func small(n: int): boolean = match (n) {
   (1 | 2) -> true,
   _ -> false,
@@ -102,7 +102,7 @@ holds; the condition can read anything the pattern bound. A guard's condition mu
 — without the parens, a guard ending in a bare identifier would otherwise parse as a
 [closure](./expressions#closures) (`ident -> body`).
 
-```nym
+```hoo
 func route(n: int, limit: int): int = match (n) {
   x if (x > limit) -> -1,
   x -> x,
@@ -120,7 +120,7 @@ it is not a whole-value binding. A nested `name = pattern` on the right retains 
 meaning: `Point(x = captured = 0, y = _)` selects `x`, binds that field value as `captured`, and
 requires it to equal `0`.
 
-```nym
+```hoo
 struct Point(x: int, y: int)
 func on_axis(p: Point): boolean = match (p) {
   Point(x = 0, y = _) -> true,
@@ -129,14 +129,14 @@ func on_axis(p: Point): boolean = match (p) {
 }
 ```
 
-```nym
+```hoo
 struct Point(x: int, y: int)
 func x_only(p: Point): int = match (p) {
   Point(x = x, ...) -> x,
 }
 ```
 
-```nym
+```hoo
 func flatten(oo: Option<Option<int>>): int = match (oo) {
   Some(value = Some(value)) -> value,
   Some(value = None) -> -1,
@@ -146,7 +146,7 @@ func flatten(oo: Option<Option<int>>): int = match (oo) {
 
 A nullary variant (no fields) is matched bare, by name — same as constructing it:
 
-```nym
+```hoo
 enum Light { Red, Yellow, Green }
 func next(l: Light): Light = match (l) {
   Red -> Green,
@@ -161,7 +161,7 @@ func next(l: Light): Light = match (l) {
 `...rest, last`, or both) splits off a prefix/suffix and binds the remainder as a list. A bare
 `...` (no name) matches the remaining elements without binding them.
 
-```nym
+```hoo
 func describe(xs: #[int]): int = match (xs) {
   #[] -> 0,
   #[only] -> only,
@@ -174,7 +174,7 @@ func describe(xs: #[int]): int = match (xs) {
 
 `#(a, b, …)` matches a tuple positionally, one sub-pattern per slot:
 
-```nym
+```hoo
 func quadrantish(p: #(int, int)): int = match (p) {
   #(0, 0) -> 0,
   #(x, y) if (x > 0 && y > 0) -> 1,
@@ -188,7 +188,7 @@ func quadrantish(p: #(int, int)): int = match (p) {
 `#{ key: pattern, … }` matches specific keys' values; a trailing `...` allows other keys to be
 present without matching every one of them.
 
-```nym
+```hoo
 func has_one(m: #{int: int}): boolean = match (m) {
   #{ 1: _, ... } -> true,
   _ -> false,
@@ -201,7 +201,7 @@ For a yes/no test against one pattern, `value is Pattern` / `value !is Pattern` 
 `match` — see [Expressions](./expressions#as-and-is). It accepts the same pattern grammar as a
 match arm, just without a guard (guards are match-arm syntax, not part of the pattern itself).
 
-```nym
+```hoo
 enum Shape { Circle(radius: int), Square(side: int) }
 func is_big_circle(s: Shape): boolean = s is Circle(radius = 20)
 ```

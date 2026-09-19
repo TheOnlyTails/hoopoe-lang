@@ -1,6 +1,6 @@
 # Uniform value boxing
 
-Every Nymph value is compiled to a _boxed value_ uniformly across primitives
+Every Hoopoe value is compiled to a _boxed value_ uniformly across primitives
 (`int`/`uint`/`float`/`char`/`boolean`/`string`), collections, enums, and structs. A
 boxed value carries its native nominal methods through a prototype, but method selection follows the
 receiver's statically resolved type. Concrete calls target that canonical method directly. Generic

@@ -1,6 +1,6 @@
-# Projects and `nymph.toml`
+# Projects and `hoopoe.toml`
 
-A Nymph project is identified by a `nymph.toml` manifest. Tools discover the
+A Hoopoe project is identified by a `hoopoe.toml` manifest. Tools discover the
 nearest manifest by searching the starting directory and then each ancestor.
 The directory containing the manifest is the project root.
 
@@ -9,7 +9,7 @@ The directory containing the manifest is the project root.
 Create a binary package at a new destination with:
 
 ```sh
-nymph new hello-world
+hoopoe new hello-world
 ```
 
 The destination basename becomes the package name. Names must start with a
@@ -22,9 +22,9 @@ The generated binary tree and exact initial source are:
 
 ```text
 hello-world/
-├── nymph.toml
+├── hoopoe.toml
 └── src/
-    └── main.nym
+    └── main.hoo
 ```
 
 ```toml
@@ -33,24 +33,24 @@ name = "hello-world"
 version = "0.1.0"
 ```
 
-```nym
+```hoo
 func main(): void = {}
 ```
 
-Pass `--lib` to generate `src/lib.nym` instead:
+Pass `--lib` to generate `src/lib.hoo` instead:
 
 ```sh
-nymph new hello-lib --lib
+hoopoe new hello-lib --lib
 ```
 
 ```text
 hello-lib/
-├── nymph.toml
+├── hoopoe.toml
 └── src/
-    └── lib.nym
+    └── lib.hoo
 ```
 
-```nym
+```hoo
 public func hello(): string = "Hello, world!"
 ```
 
@@ -59,9 +59,9 @@ Git is initialized by default, but no initial commit is created. Use
 noninteractive and staged before publication, so a missing or failing Git
 executable and other initialization errors do not leave a partial destination.
 
-The generated binary can be checked from its root with `nymph check`. Until
+The generated binary can be checked from its root with `hoopoe check`. Until
 library-target metadata is part of the manifest schema, check a generated
-library explicitly with `nymph check src/lib.nym`.
+library explicitly with `hoopoe check src/lib.hoo`.
 
 Discovery has three outcomes: a valid manifest selects project mode; finding
 no manifest in the search chain permits loose-file mode; and finding a
@@ -71,7 +71,7 @@ its search chain); tools never ignore it and retry the source as a loose file.
 
 Pass the global `--manifest <PATH>` option to select a manifest explicitly.
 The selected path is authoritative: tools read exactly that file, do not
-discover `nymph.toml` or fall back to loose-file mode, and report any read or
+discover `hoopoe.toml` or fall back to loose-file mode, and report any read or
 parse error for that path. There is no `--config` alias or environment-based
 project configuration.
 
@@ -87,14 +87,14 @@ version = "0.1.0"
 utilities = "^1.0"
 
 [build] # optional
-entry = "main.nym" # optional; defaults to main.nym
+entry = "main.hoo" # optional; defaults to main.hoo
 ```
 
 `package.src` is relative to the project root and defines the source root.
-`build.entry` is a contained `.nym` path relative to that source root; it may
+`build.entry` is a contained `.hoo` path relative to that source root; it may
 not be absolute or escape with `..`. Source files below the source root map to
-canonical compiler module paths by removing `.nym` and joining components with
-`/` (for example, `src/network/http.nym` maps to `network/http`).
+canonical compiler module paths by removing `.hoo` and joining components with
+`/` (for example, `src/network/http.hoo` maps to `network/http`).
 
 ## Selecting a command target
 
@@ -104,13 +104,13 @@ canonical compiler module paths by removing `.nym` and joining components with
 | -------------- | -------------- | -------------------------------------------------------- |
 | Yes            | Omitted        | The manifest's `build.entry`, relative to `package.src`  |
 | Yes            | Explicit       | That file, which must be below the project's source root |
-| No             | Explicit       | That loose `.nym` file                                   |
-| No             | Omitted        | Error: pass a `.nym` file or run inside a project        |
+| No             | Explicit       | That loose `.hoo` file                                   |
+| No             | Omitted        | Error: pass a `.hoo` file or run inside a project        |
 
 The manifest entry is an executable entry module for `build` and `check`;
 other explicit project files and loose files are libraries. `run` always
 requires the selected target to declare a valid `main`. Entry selection never
-depends on whether a file happens to be named `main.nym`.
+depends on whether a file happens to be named `main.hoo`.
 
 `check` resolves the same complete import graph and uses the same embedded
 ambient core and `std/…` sources as `build` and `run`. It stops after parsing,
@@ -119,17 +119,17 @@ artifact, and executes neither the selected module nor Node.
 
 ## Inspecting fully expanded source
 
-`nymph expand <module-path>` prints one project's fully expanded runtime module
-as formatted Nymph. The module path is relative to `package.src`, uses `/` between
-components, and omits both the `.nym` suffix and import prefixes. For example:
+`hoopoe expand <module-path>` prints one project's fully expanded runtime module
+as formatted Hoopoe. The module path is relative to `package.src`, uses `/` between
+components, and omits both the `.hoo` suffix and import prefixes. For example:
 
 ```sh
-nymph expand main
-nymph expand network/http
-nymph --manifest ../app/nymph.toml expand generated/routes
+hoopoe expand main
+hoopoe expand network/http
+hoopoe --manifest ../app/hoopoe.toml expand generated/routes
 ```
 
-Forms such as `@/network/http`, `./network/http`, `network/http.nym`, absolute
+Forms such as `@/network/http`, `./network/http`, `network/http.hoo`, absolute
 paths, and paths containing `..` are rejected. Unlike `check`, `build`, and `run`,
 `expand` is project-only and always requires an explicit module path; it does not
 accept a loose source file or default to `build.entry`.
@@ -155,8 +155,8 @@ Task<Result<void, E>>
 ```
 
 `E` must implement `Display`. The compiler chooses the adapter from the resolved static type; the
-runtime never guesses by inspecting a value. `nymph build` produces an inert importable ES module.
-Only `nymph run` (and future explicitly runnable Node artifacts) adds the Node launcher.
+runtime never guesses by inspecting a value. `hoopoe build` produces an inert importable ES module.
+Only `hoopoe run` (and future explicitly runnable Node artifacts) adds the Node launcher.
 
 The launcher writes no successful root value. `void`, `Some(void)`, and `Ok(void)` exit 0; `None`
 writes `error: main returned None` and exits 1; `Error(error)` writes `error: ` followed by
@@ -173,7 +173,7 @@ The first termination signal requests cooperative cancellation and cleanup; a se
 `echo expression` is a compiler observation expression. It evaluates its operand exactly once,
 returns that identical value, preserves the operand's type and effects, and adds no `!Io`.
 
-```nym
+```hoo
 struct Credential(public user: string, private token: string)
 func inspect(value: Credential): Credential = echo value
 ```
@@ -191,17 +191,17 @@ intentional program output.
 From a project directory, all three commands select `build.entry`:
 
 ```sh
-nymph check
-nymph build
-nymph run
+hoopoe check
+hoopoe build
+hoopoe run
 ```
 
 An explicit project file or a standalone loose file remains supported:
 
 ```sh
-nymph check src/network/http.nym
-nymph build scratch.nym
-nymph run script.nym
+hoopoe check src/network/http.hoo
+hoopoe build scratch.hoo
+hoopoe run script.hoo
 ```
 
 Because manifest fields are based on the selected manifest's directory, an
@@ -209,9 +209,9 @@ explicit manifest works from anywhere. As a global option, it may appear
 before or after the subcommand:
 
 ```sh
-nymph --manifest ../hello/nymph.toml check
-nymph build --manifest ../hello/nymph.toml
-nymph run --manifest ../hello/nymph.toml
+hoopoe --manifest ../hello/hoopoe.toml check
+hoopoe build --manifest ../hello/hoopoe.toml
+hoopoe run --manifest ../hello/hoopoe.toml
 ```
 
 An explicit source argument is still resolved within the selected manifest's
@@ -220,8 +220,8 @@ discovery of another project.
 
 ## Interactive evaluation
 
-`nymph repl` starts a persistent read-eval-print loop. It discovers the nearest
-`nymph.toml` from the current directory and resolves `@/…` imports from that
+`hoopoe repl` starts a persistent read-eval-print loop. It discovers the nearest
+`hoopoe.toml` from the current directory and resolves `@/…` imports from that
 project's `package.src`. `--manifest <PATH>` selects exactly that manifest and
 never falls back. Only the absence of a discovered manifest starts a loose
 session; loose sessions still include ambient core and embedded `std/…` modules.
@@ -236,7 +236,7 @@ and runtime failures preserve the last good session state.
 In a terminal the primary prompt is `> ` and incomplete syntax uses `... `.
 Continuation is determined by lexer/parser end-of-input state, so multiline
 blocks, string interpolation, and block comments do not require an extra blank
-line. Ctrl-D (EOF) exits cleanly. Values are rendered with Nymph's `Debug`
+line. Ctrl-D (EOF) exits cleanly. Values are rendered with Hoopoe's `Debug`
 semantics, including user implementations, rather than JavaScript object
 inspection.
 
@@ -244,21 +244,21 @@ Redirected input prints neither the banner nor prompts. This makes transcripts
 deterministic and scriptable:
 
 ```sh
-printf 'let x = 40\nx + 2\n' | nymph repl
+printf 'let x = 40\nx + 2\n' | hoopoe repl
 # 42
 ```
 
 ## Formatting sources
 
-`nymph format [FILES...]` rewrites explicitly named `.nym` files in normalized,
+`hoopoe format [FILES...]` rewrites explicitly named `.hoo` files in normalized,
 deterministic order. Duplicate paths are processed once. With no files it
-discovers the authoritative project and formats every `.nym` file below
+discovers the authoritative project and formats every `.hoo` file below
 `package.src`, without following symlinks or entering generated/dependency
 directories. Use `--manifest <PATH>` to select a project authoritatively;
 explicit files outside that project's source root are rejected.
 
 Formatting writes atomically and leaves already formatted files untouched.
-`nymph format --check [FILES...]` performs the same selection without writing.
+`hoopoe format --check [FILES...]` performs the same selection without writing.
 Exit status 0 means success (and, in check mode, no changes), 1 means check mode
 found files that would change, and 2 means selection, I/O, or syntax errors.
 Errors do not prevent other selected files from being checked or formatted.

@@ -19,7 +19,7 @@ pub enum Declaration {
 	/// An optional `with` clause can be used to only import specific items from the module,
 	/// and make them available without a module qualifier, or under different names.
 	///
-	/// ```nym
+	/// ```hoo
 	/// import std/math
 	/// import std/math with (sin as sine, cos as cosine, tan as tangent)
 	/// ```
@@ -41,7 +41,7 @@ pub enum Declaration {
 	},
 	ExternalFunc(Option<Visibility>, EcoString, FuncDeclaration),
 	/// Redefines a type with a new name.
-	/// ```nym
+	/// ```hoo
 	/// type VeryVeryNested = #[#(#{#[int]: #(string, float)}, #[boolean)]
 	/// type TupleList<K, V> = #[#(K, V)]
 	/// ```
@@ -63,7 +63,7 @@ pub enum Declaration {
 	/// - They are both instances of the same struct.
 	/// - The values of each of their fields are the same.
 	///
-	/// ```nym
+	/// ```hoo
 	/// struct Person(name: string, age: int) {
 	///   let first_name = name.split()[0]
 	///   let last_name = name.split()[1]
@@ -85,7 +85,7 @@ pub enum Declaration {
 	/// An algebraic sum type, containing multiple named variants,
 	/// each having an associated constructor and fields.
 	///
-	/// ```nym
+	/// ```hoo
 	/// enum Option<T> {
 	///   Some(value: T),
 	///   None
@@ -117,7 +117,7 @@ pub enum Declaration {
 	},
 	/// An `impl` block extends a declaration with custom variables, functions, and types.
 	///
-	/// ```nym
+	/// ```hoo
 	/// impl<T> Option<T> {
 	///   func maybe_print() -> match (this) {
 	///     Some(value) -> io.println(value),
@@ -134,7 +134,7 @@ pub enum Declaration {
 	},
 	/// An `impl as` block extends a declaration using an interface.
 	/// For example:
-	/// ```nym
+	/// ```hoo
 	/// impl Comparable<Person> as Person {
 	///   func compare(other: Person) -> this.age.compare(other.age)
 	/// }

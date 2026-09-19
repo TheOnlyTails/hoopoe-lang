@@ -1,12 +1,12 @@
 # Draft async model
 
-This document records Nymph's current async task design. It is design documentation rather than the
+This document records Hoopoe's current async task design. It is design documentation rather than the
 implemented language reference. The broader type-system direction is documented in
 [`language-identity.md`](./language-identity.md).
 
 ## Syntax and effects
 
-```nymph
+```hoopoe
 async func load(): User + !Network = {
   fetch().await
 }
@@ -46,7 +46,7 @@ the body.
 
 Direct await drives or observes the default execution:
 
-```nymph
+```hoopoe
 let task = fetch()
 let first = task.await  // Starts and caches the default execution.
 let second = task.await // Observes the same memoized result.
@@ -57,7 +57,7 @@ implicit handle retained by the task.
 
 Explicit spawn always creates a fresh independent execution from the recipe:
 
-```nymph
+```hoopoe
 let first = task.spawn()
 let second = task.spawn()
 ```
@@ -82,7 +82,7 @@ Generated JavaScript represents a recipe as a closure receiving one hidden execu
 carries the inherited structured task context, the current execution's cancellation lineage, and its
 `AbortSignal`. Async functions pass the inherited context through unchanged; async blocks replace only
 the context with a nested one. Generated cleanup regions register lexical `Close` calls with runtime
-helpers, and cancellable host adapters receive the frame's signal explicitly. Nymph does not use
+helpers, and cancellable host adapters receive the frame's signal explicitly. Hoopoe does not use
 Node's ambient `AsyncLocalStorage` as language semantics.
 
 The host runtime owns runtime-private mutable state: the task's memoized default handle, fresh
@@ -90,11 +90,11 @@ executions, handle outcomes and observation state, context child registries, exe
 lineages, deterministic settlement order, defect aggregation, selection, racing, and root driving. Its
 task kernel is an embedded JavaScript module whose core requires only promises and `AbortController`;
 Node-specific host operations remain adapters around that kernel. Native promises are an internal
-scheduling mechanism, never the representation of a Nymph `Task`.
+scheduling mechanism, never the representation of a Hoopoe `Task`.
 
 ## Continuations and suspension
 
-Generated Nymph callables use defunctionalized activations under the runtime execution frame. An
+Generated Hoopoe callables use defunctionalized activations under the runtime execution frame. An
 activation contains the callable's explicit resume state, live locals, and lexical cleanup scopes. The
 runtime driver interprets HIR-level ordinary-call, tail-call, suspension, return, and cleanup
 operations; native promises schedule host suspension but do not represent the language continuation.
@@ -106,14 +106,14 @@ same driver. Consequently proper tail calls, async suspension, cancellation unwi
 cleanup share one control-flow mechanism rather than composing a separate trampoline with native
 `async`/`await` and `finally` stacks.
 
-All generated Nymph callables share this activation ABI. The cold recipe closure's hidden execution
+All generated Hoopoe callables share this activation ABI. The cold recipe closure's hidden execution
 frame from the task runtime is the driver context; it is not a second continuation representation.
 External host operations remain explicit adapters and receive only the frame data their ABI requires,
 such as an `AbortSignal` for cancellable operations.
 
 ## Handle outcomes
 
-```nymph
+```hoopoe
 enum HandleError {
   Cancelled,
   Defected(defect: Defect),
@@ -122,7 +122,7 @@ enum HandleError {
 
 Driving a handle to completion returns an ordinary `Result`:
 
-```nymph
+```hoopoe
 let result: Result<T, HandleError> = handle.await
 ```
 
@@ -191,11 +191,11 @@ on ambient Node state and does not change the ordinary external-call ABI.
 
 Managed resource bindings use synchronous, effect-parameterized `Close.close()`:
 
-```nymph
+```hoopoe
 let use file = File.open(path)?
 ```
 
-```nymph
+```hoopoe
 interface Close<!E> {
   func close(): void + !E
 }
@@ -219,7 +219,7 @@ same execution cleanup path; no replacement or successor iteration can escape it
 
 A resource may escape as an alias, be registered more than once, or be closed manually. Every lexical
 registration still invokes `close` once. The implementation owns alias-shared closed state and exposes
-safe post-close failures through its declared expected-error types; Nymph adds neither a universal
+safe post-close failures through its declared expected-error types; Hoopoe adds neither a universal
 closed-resource error nor a compiler-owned lifecycle wrapper.
 
 If a spawned child captures a managed resource whose lexical scope closes before the child's actual
@@ -235,14 +235,14 @@ in close order.
 
 Low-level selection is non-owning:
 
-```nymph
+```hoopoe
 struct Selection<T>(
   index: uint,
   result: Result<T, HandleError>,
 )
 ```
 
-```nymph
+```hoopoe
 Handle.select(handles): Task<Selection<T>>
 ```
 
@@ -252,7 +252,7 @@ index wins deterministically.
 
 ## Racing tasks
 
-```nymph
+```hoopoe
 Task.race(tasks): Task<Result<T, HandleError> + !E>
 ```
 
@@ -300,8 +300,8 @@ task context, then applies the same policy to synchronous and task-shaped roots:
   `error: program defected: <summary>\n`, and exits 101. Renderer failure falls back to
   `error: program defected\n`.
 
-Application `None` and `Error` values never become cancellation or defects. Ordinary `nymph build`
-output remains an inert importable ES module; the launcher policy belongs to `nymph run` and future
+Application `None` and `Error` values never become cancellation or defects. Ordinary `hoopoe build`
+output remains an inert importable ES module; the launcher policy belongs to `hoopoe run` and future
 explicitly runnable Node artifacts. Task machinery continues to distinguish produced values,
 cancellation, and defects without interpreting application `Option` or `Result` values. The complete
 contract and implementation evidence are recorded in

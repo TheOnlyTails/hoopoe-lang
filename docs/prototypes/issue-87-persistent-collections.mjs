@@ -1,5 +1,5 @@
 // THROWAWAY PROTOTYPE for issue 87.
-// Question: which JavaScript payloads make Nymph list/map/set updates persistent,
+// Question: which JavaScript payloads make Hoopoe list/map/set updates persistent,
 // slices share storage, and structural equality/hash lawful without changing uniform boxes?
 
 import assert from "node:assert/strict";

@@ -1,0 +1,256 @@
+//! Browser DTO adaptation around the stable compiler session pipeline.
+
+use hoopoe_compiler::{
+	CompiledEntryRoot, CompilerOptions, CompilerSession, EntryMode, ModulePath, ProjectId, Severity,
+	SourceVersion, compile_project_with_embedded_std_and_options,
+};
+use hoopoe_syntax::{lex, parse_module};
+
+use crate::diag::{
+	CompileResult, ExpandedSourceResult, InspectionResult, LineIndex, RunArtifactView, StageStatus,
+	StageView, TokenView, TypeStateView,
+};
+
+fn token_views(source: &str) -> Vec<TokenView> {
+	let index = LineIndex::new(source);
+	lex(source)
+		.tokens
+		.iter()
+		.map(|token| {
+			let span = token.1;
+			let (line, col) = index.line_col(span.start);
+			TokenView {
+				kind: format!("{:?}", token.0),
+				text: source
+					.get(span.start..span.end)
+					.unwrap_or_default()
+					.to_owned(),
+				start: span.start,
+				end: span.end,
+				line,
+				col,
+			}
+		})
+		.collect()
+}
+
+/// Parse, check, and (if error-free) lower + emit `source` to a JS module
+/// string. Mirrors `hoopoe_compiler::compile`.
+pub(crate) fn run_compile(source: &str) -> CompileResult {
+	let report = hoopoe_compiler::compile_report(source, "playground");
+	let index = LineIndex::new(source);
+	let diagnostics = report
+		.diagnostics
+		.iter()
+		.map(|d| index.to_diag(source, "playground", d))
+		.collect();
+	CompileResult {
+		js: report.js,
+		diagnostics,
+	}
+}
+
+/// Parse and check `source`, returning every diagnostic (errors and
+/// warnings alike) with no emission. Mirrors `hoopoe_compiler::check`.
+pub(crate) fn run_check(source: &str) -> CompileResult {
+	let checked = hoopoe_compiler::check(source, "playground");
+	let index = LineIndex::new(source);
+	let diagnostics = checked
+		.iter()
+		.map(|d| index.to_diag(source, "playground", d))
+		.collect();
+
+	CompileResult {
+		js: None,
+		diagnostics,
+	}
+}
+
+/// Expand source through the canonical project/session query.
+pub(crate) fn run_expand(source: &str) -> ExpandedSourceResult {
+	let report = hoopoe_compiler::expand_standalone_report(source, "playground");
+	let index = LineIndex::new(source);
+	ExpandedSourceResult {
+		source: report.source.as_deref().map(str::to_owned),
+		diagnostics: report
+			.diagnostics
+			.iter()
+			.map(|diagnostic| index.to_diag(source, "playground", &diagnostic.diag))
+			.collect(),
+	}
+}
+
+/// Inspect the concrete outputs that are useful while debugging a compilation.
+/// The final compile still goes through `hoopoe-compiler`; direct syntax calls only
+/// expose the lexer and parser artifacts which that stable facade intentionally hides.
+pub(crate) fn run_inspect(source: &str) -> InspectionResult {
+	let index = LineIndex::new(source);
+	let lexed = lex(source);
+	let tokens = token_views(source);
+	let run = compile_project_with_embedded_std_and_options(
+		"playground",
+		&|module| (module == "playground").then(|| source.to_owned()),
+		&CompilerOptions::default(),
+	)
+	.ok()
+	.and_then(|compiled| {
+		let root = compiled.entry_root?;
+		let (root_kind, task, binding) = match root {
+			CompiledEntryRoot::Void => ("void", false, None),
+			CompiledEntryRoot::Option { binding } => ("option", false, Some(binding)),
+			CompiledEntryRoot::Result { binding } => ("result", false, Some(binding)),
+			CompiledEntryRoot::TaskVoid => ("void", true, None),
+			CompiledEntryRoot::TaskOption { binding } => ("option", true, Some(binding)),
+			CompiledEntryRoot::TaskResult { binding } => ("result", true, Some(binding)),
+		};
+		let mut js = compiled.js;
+		if let Some(binding) = binding {
+			js.push_str(&format!("\nexport {{ {binding} as __hoopoeRootEnum }};\n"));
+		}
+		Some(RunArtifactView {
+			js,
+			root_kind,
+			task,
+		})
+	});
+	let lex_failed = lexed
+		.diagnostics
+		.iter()
+		.any(|diagnostic| diagnostic.severity == Severity::Error);
+
+	let parsed = parse_module(source, "playground");
+	let parse_failed = parsed
+		.diagnostics
+		.iter()
+		.any(|diagnostic| diagnostic.severity == Severity::Error);
+	let ast = format!("{:#?}", parsed.tree);
+	let project = ProjectId::new("playground");
+	let module = ModulePath::new("playground").expect("the playground module path is canonical");
+	let mut session = CompilerSession::new();
+	session.set_source(
+		project.clone(),
+		module.clone(),
+		source.to_owned(),
+		SourceVersion(1),
+	);
+	let types = session
+		.analyze_module(project, module.clone(), module, EntryMode::Library)
+		.map(|analysis| {
+			analysis
+				.expression_type_state()
+				.into_iter()
+				.map(|entry| {
+					let (line, col) = index.line_col(entry.span.start);
+					TypeStateView {
+						node: entry.node.0,
+						parent: entry.parent.map(|parent| parent.0),
+						source: source
+							.get(entry.span.start..entry.span.end)
+							.unwrap_or_default()
+							.to_owned(),
+						type_: entry.type_,
+						dispatch: entry.dispatch,
+						method: entry.method,
+						start: entry.span.start,
+						end: entry.span.end,
+						line,
+						col,
+					}
+				})
+				.collect()
+		})
+		.unwrap_or_default();
+
+	let report = hoopoe_compiler::compile_report(source, "playground");
+	let expansion = run_expand(source);
+	let expanded_tokens = expansion
+		.source
+		.as_deref()
+		.map_or_else(Vec::new, token_views);
+	let compile_failed = report
+		.diagnostics
+		.iter()
+		.any(|diagnostic| diagnostic.severity == Severity::Error);
+	let diagnostics = report
+		.diagnostics
+		.iter()
+		.map(|diagnostic| index.to_diag(source, "playground", diagnostic))
+		.collect::<Vec<_>>();
+
+	let syntax_failed = lex_failed || parse_failed;
+	let stages = vec![
+		StageView {
+			name: "Lex",
+			status: if lex_failed {
+				StageStatus::Failed
+			} else {
+				StageStatus::Complete
+			},
+			detail: format!(
+				"{} token{}",
+				tokens.len(),
+				if tokens.len() == 1 { "" } else { "s" }
+			),
+		},
+		StageView {
+			name: "Parse",
+			status: if lex_failed {
+				StageStatus::Blocked
+			} else if parse_failed {
+				StageStatus::Failed
+			} else {
+				StageStatus::Complete
+			},
+			detail: format!(
+				"{} top-level declaration{}",
+				parsed.tree.members.len(),
+				if parsed.tree.members.len() == 1 {
+					""
+				} else {
+					"s"
+				}
+			),
+		},
+		StageView {
+			name: "Analyze",
+			status: if syntax_failed {
+				StageStatus::Blocked
+			} else if compile_failed {
+				StageStatus::Failed
+			} else {
+				StageStatus::Complete
+			},
+			detail: if syntax_failed {
+				"waiting for valid syntax".to_owned()
+			} else if compile_failed {
+				"type or semantic errors found".to_owned()
+			} else {
+				"types and names resolved".to_owned()
+			},
+		},
+		StageView {
+			name: "Lower & emit",
+			status: if report.js.is_some() {
+				StageStatus::Complete
+			} else {
+				StageStatus::Blocked
+			},
+			detail: report.js.as_ref().map_or_else(
+				|| "waiting for a clean analysis".to_owned(),
+				|js| format!("{} bytes of JavaScript", js.len()),
+			),
+		},
+	];
+
+	InspectionResult {
+		tokens,
+		ast,
+		types,
+		stages,
+		expanded: expansion.source,
+		expanded_tokens,
+		js: report.js,
+		run,
+		diagnostics,
+	}
+}

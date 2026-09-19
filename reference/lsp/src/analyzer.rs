@@ -1,19 +1,19 @@
 use ecow::EcoString;
 
 use crate::document::Document;
-use nymph_compiler::ast::Span;
-use nymph_compiler::ast::declaration::Visibility;
-use nymph_compiler::ast::declaration::{
+use hoopoe_compiler::ast::Span;
+use hoopoe_compiler::ast::declaration::Visibility;
+use hoopoe_compiler::ast::declaration::{
 	Declaration, EnumVariant, FuncDeclaration, ImplMember, ImportRoot, InterfaceElement,
 	InterfaceMember, LetDeclaration, Module, StructField, StructInnerMember,
 };
-use nymph_compiler::ast::expr::{
+use hoopoe_compiler::ast::expr::{
 	ClosureParam, Expr, ListPatternEntry, MapPatternEntry, MatchArm, Statement, StructPatternField,
 };
-use nymph_compiler::ast::ops::{BinaryOperator, PrefixOperator};
-use nymph_compiler::ast::types::{GenericArg, GenericParam, Type};
-use nymph_compiler::ast::{Ident, Spanned};
-use nymph_compiler::types::{Context, ContextEntry, ContextValue, Type as CheckedType};
+use hoopoe_compiler::ast::ops::{BinaryOperator, PrefixOperator};
+use hoopoe_compiler::ast::types::{GenericArg, GenericParam, Type};
+use hoopoe_compiler::ast::{Ident, Spanned};
+use hoopoe_compiler::types::{Context, ContextEntry, ContextValue, Type as CheckedType};
 
 /// Information about a symbol at a specific location
 #[derive(Debug, Clone)]
@@ -398,10 +398,10 @@ fn infer_hover_type(expr: &Expr, doc: &Document, ctx: Option<&Context>) -> Optio
 	infer_checked_type(expr, doc, ctx).map(|ty| ty.to_string())
 }
 
-fn pattern_binding_ident(pattern: &nymph_compiler::ast::expr::Pattern) -> Option<&Ident> {
+fn pattern_binding_ident(pattern: &hoopoe_compiler::ast::expr::Pattern) -> Option<&Ident> {
 	match pattern {
-		nymph_compiler::ast::expr::Pattern::Binding { name, .. } => Some(name),
-		nymph_compiler::ast::expr::Pattern::Struct { path, fields }
+		hoopoe_compiler::ast::expr::Pattern::Binding { name, .. } => Some(name),
+		hoopoe_compiler::ast::expr::Pattern::Struct { path, fields }
 			if path.len() == 1 && fields.is_empty() =>
 		{
 			Some(&path[0])
@@ -469,8 +469,8 @@ fn function_body_context(meta: &FuncDeclaration, ctx: Option<&Context>) -> Conte
 
 	for param_meta in &meta.params {
 		let binding = match &param_meta.0.name.0 {
-			nymph_compiler::ast::expr::Pattern::Binding { name, .. } => Some(name.0.clone()),
-			nymph_compiler::ast::expr::Pattern::Struct { path, fields }
+			hoopoe_compiler::ast::expr::Pattern::Binding { name, .. } => Some(name.0.clone()),
+			hoopoe_compiler::ast::expr::Pattern::Struct { path, fields }
 				if path.len() == 1 && fields.is_empty() =>
 			{
 				Some(path[0].0.clone())
@@ -770,7 +770,7 @@ fn find_symbol_in_import(
 		if path.is_empty() {
 			return None;
 		}
-		let dummy_span = nymph_compiler::ast::Span::new(0, 1);
+		let dummy_span = hoopoe_compiler::ast::Span::new(0, 1);
 		tc.resolve_import_path(root, path, dummy_span).ok()
 	});
 
@@ -1302,8 +1302,8 @@ fn find_symbol_in_expr(
 		Expr::List(items) | Expr::Tuple(items) => {
 			for item in items {
 				let expr = match &item.0 {
-					nymph_compiler::ast::expr::ListItem::Expr(e) => e,
-					nymph_compiler::ast::expr::ListItem::Spread(e) => e,
+					hoopoe_compiler::ast::expr::ListItem::Expr(e) => e,
+					hoopoe_compiler::ast::expr::ListItem::Spread(e) => e,
 				};
 				if let Some(sym) = find_symbol_in_expr(&expr.0, offset, doc, ctx) {
 					return Some(sym);
@@ -1314,7 +1314,7 @@ fn find_symbol_in_expr(
 		Expr::Map(entries) => {
 			for entry in entries {
 				match &entry.0 {
-					nymph_compiler::ast::expr::MapEntry::Expr(k, v) => {
+					hoopoe_compiler::ast::expr::MapEntry::Expr(k, v) => {
 						if let Some(sym) = find_symbol_in_expr(&k.0, offset, doc, ctx) {
 							return Some(sym);
 						}
@@ -1322,7 +1322,7 @@ fn find_symbol_in_expr(
 							return Some(sym);
 						}
 					}
-					nymph_compiler::ast::expr::MapEntry::Spread(e) => {
+					hoopoe_compiler::ast::expr::MapEntry::Spread(e) => {
 						if let Some(sym) = find_symbol_in_expr(&e.0, offset, doc, ctx) {
 							return Some(sym);
 						}
@@ -1335,7 +1335,7 @@ fn find_symbol_in_expr(
 		// String interpolations
 		Expr::String(parts) => {
 			for part in parts {
-				if let nymph_compiler::ast::expr::StringPart::InterpolatedExpr(e) = &part.0
+				if let hoopoe_compiler::ast::expr::StringPart::InterpolatedExpr(e) = &part.0
 					&& let Some(sym) = find_symbol_in_expr(&e.0, offset, doc, ctx)
 				{
 					return Some(sym);
@@ -1442,13 +1442,13 @@ fn find_symbol_in_match_arm(
 }
 
 fn find_symbol_in_pattern(
-	pattern: &nymph_compiler::ast::expr::Pattern,
+	pattern: &hoopoe_compiler::ast::expr::Pattern,
 	scrutinee: &Expr,
 	offset: usize,
 	doc: &Document,
 	_ctx: Option<&Context>,
 ) -> Option<SymbolAtLocation> {
-	use nymph_compiler::ast::expr::Pattern;
+	use hoopoe_compiler::ast::expr::Pattern;
 
 	match pattern {
 		Pattern::Binding { name, inner } => {
@@ -1707,11 +1707,11 @@ fn infer_expr_type(expr: &Expr) -> Option<String> {
 				Some("#[_]".to_string())
 			} else if let Some(first) = items.first() {
 				match &first.0 {
-					nymph_compiler::ast::expr::ListItem::Expr(e) => {
+					hoopoe_compiler::ast::expr::ListItem::Expr(e) => {
 						let elem_type = infer_expr_type(&e.0).unwrap_or_else(|| "_".to_string());
 						Some(format!("#[{elem_type}]"))
 					}
-					nymph_compiler::ast::expr::ListItem::Spread(_) => Some("#[_]".to_string()),
+					hoopoe_compiler::ast::expr::ListItem::Spread(_) => Some("#[_]".to_string()),
 				}
 			} else {
 				Some("#[_]".to_string())
@@ -1721,10 +1721,10 @@ fn infer_expr_type(expr: &Expr) -> Option<String> {
 			let elem_types: Vec<String> = items
 				.iter()
 				.map(|item| match &item.0 {
-					nymph_compiler::ast::expr::ListItem::Expr(e) => {
+					hoopoe_compiler::ast::expr::ListItem::Expr(e) => {
 						infer_expr_type(&e.0).unwrap_or_else(|| "_".to_string())
 					}
-					nymph_compiler::ast::expr::ListItem::Spread(_) => "_".to_string(),
+					hoopoe_compiler::ast::expr::ListItem::Spread(_) => "_".to_string(),
 				})
 				.collect();
 			Some(format!("#({})", elem_types.join(", ")))
@@ -1734,12 +1734,12 @@ fn infer_expr_type(expr: &Expr) -> Option<String> {
 				Some("#{{_: _}}".to_string())
 			} else if let Some(first) = entries.first() {
 				match &first.0 {
-					nymph_compiler::ast::expr::MapEntry::Expr(k, v) => {
+					hoopoe_compiler::ast::expr::MapEntry::Expr(k, v) => {
 						let key_type = infer_expr_type(&k.0).unwrap_or_else(|| "_".to_string());
 						let val_type = infer_expr_type(&v.0).unwrap_or_else(|| "_".to_string());
 						Some(format!("#{{{key_type}: {val_type}}}"))
 					}
-					nymph_compiler::ast::expr::MapEntry::Spread(_) => Some("#{{_: _}}".to_string()),
+					hoopoe_compiler::ast::expr::MapEntry::Spread(_) => Some("#{{_: _}}".to_string()),
 				}
 			} else {
 				Some("#{{_: _}}".to_string())
@@ -2117,7 +2117,7 @@ fn completion_suggestions_from_type(type_: &CheckedType) -> Vec<CompletionSugges
 
 fn completion_suggestions_from_struct_members(
 	members: &std::sync::Arc<
-		std::collections::BTreeMap<EcoString, nymph_compiler::types::StructMember>,
+		std::collections::BTreeMap<EcoString, hoopoe_compiler::types::StructMember>,
 	>,
 ) -> Vec<CompletionSuggestion> {
 	members
@@ -2271,8 +2271,8 @@ fn collect_completion_suggestions_in_expr(
 		Expr::List(items) | Expr::Tuple(items) => {
 			for item in items {
 				let expr = match &item.0 {
-					nymph_compiler::ast::expr::ListItem::Expr(expr)
-					| nymph_compiler::ast::expr::ListItem::Spread(expr) => expr,
+					hoopoe_compiler::ast::expr::ListItem::Expr(expr)
+					| hoopoe_compiler::ast::expr::ListItem::Spread(expr) => expr,
 				};
 				if expr.1.start <= offset && offset <= expr.1.end {
 					collect_completion_suggestions_in_expr(&expr.0, offset, suggestions);
@@ -2282,7 +2282,7 @@ fn collect_completion_suggestions_in_expr(
 		Expr::Map(entries) => {
 			for entry in entries {
 				match &entry.0 {
-					nymph_compiler::ast::expr::MapEntry::Expr(key, value) => {
+					hoopoe_compiler::ast::expr::MapEntry::Expr(key, value) => {
 						if key.1.start <= offset && offset <= key.1.end {
 							collect_completion_suggestions_in_expr(&key.0, offset, suggestions);
 						}
@@ -2290,7 +2290,7 @@ fn collect_completion_suggestions_in_expr(
 							collect_completion_suggestions_in_expr(&value.0, offset, suggestions);
 						}
 					}
-					nymph_compiler::ast::expr::MapEntry::Spread(expr) => {
+					hoopoe_compiler::ast::expr::MapEntry::Spread(expr) => {
 						if expr.1.start <= offset && offset <= expr.1.end {
 							collect_completion_suggestions_in_expr(&expr.0, offset, suggestions);
 						}
@@ -2300,7 +2300,7 @@ fn collect_completion_suggestions_in_expr(
 		}
 		Expr::String(parts) => {
 			for part in parts {
-				if let nymph_compiler::ast::expr::StringPart::InterpolatedExpr(expr) = &part.0
+				if let hoopoe_compiler::ast::expr::StringPart::InterpolatedExpr(expr) = &part.0
 					&& expr.1.start <= offset
 					&& offset <= expr.1.end
 				{
@@ -2317,15 +2317,15 @@ fn collect_completion_suggestions_in_expr(
 			}
 		}
 		Expr::Range(range) => match range {
-			nymph_compiler::ast::expr::RangeKind::From(expr)
-			| nymph_compiler::ast::expr::RangeKind::To(expr)
-			| nymph_compiler::ast::expr::RangeKind::ToInclusive(expr) => {
+			hoopoe_compiler::ast::expr::RangeKind::From(expr)
+			| hoopoe_compiler::ast::expr::RangeKind::To(expr)
+			| hoopoe_compiler::ast::expr::RangeKind::ToInclusive(expr) => {
 				if expr.1.start <= offset && offset <= expr.1.end {
 					collect_completion_suggestions_in_expr(&expr.0, offset, suggestions);
 				}
 			}
-			nymph_compiler::ast::expr::RangeKind::Exclusive { min, max }
-			| nymph_compiler::ast::expr::RangeKind::Inclusive { min, max } => {
+			hoopoe_compiler::ast::expr::RangeKind::Exclusive { min, max }
+			| hoopoe_compiler::ast::expr::RangeKind::Inclusive { min, max } => {
 				if min.1.start <= offset && offset <= min.1.end {
 					collect_completion_suggestions_in_expr(&min.0, offset, suggestions);
 				}
@@ -2348,11 +2348,11 @@ fn collect_completion_suggestions_in_expr(
 }
 
 fn push_pattern_completion_suggestions(
-	pattern: &nymph_compiler::ast::expr::Pattern,
+	pattern: &hoopoe_compiler::ast::expr::Pattern,
 	suggestions: &mut Vec<CompletionSuggestion>,
 	kind: SymbolKind,
 ) {
-	use nymph_compiler::ast::expr::Pattern;
+	use hoopoe_compiler::ast::expr::Pattern;
 
 	match pattern {
 		Pattern::Binding { name, inner } => {
@@ -2834,8 +2834,8 @@ fn resolve_definition_in_expr(
 		Expr::List(items) | Expr::Tuple(items) => {
 			for item in items {
 				let expr = match &item.0 {
-					nymph_compiler::ast::expr::ListItem::Expr(expr)
-					| nymph_compiler::ast::expr::ListItem::Spread(expr) => &expr.0,
+					hoopoe_compiler::ast::expr::ListItem::Expr(expr)
+					| hoopoe_compiler::ast::expr::ListItem::Spread(expr) => &expr.0,
 				};
 				if let Some(target) = resolve_definition_in_expr(expr, offset, doc, top_level, scope) {
 					return Some(target);
@@ -2846,7 +2846,7 @@ fn resolve_definition_in_expr(
 		Expr::Map(entries) => {
 			for entry in entries {
 				match &entry.0 {
-					nymph_compiler::ast::expr::MapEntry::Expr(key, value) => {
+					hoopoe_compiler::ast::expr::MapEntry::Expr(key, value) => {
 						if let Some(target) = resolve_definition_in_expr(&key.0, offset, doc, top_level, scope)
 						{
 							return Some(target);
@@ -2857,7 +2857,7 @@ fn resolve_definition_in_expr(
 							return Some(target);
 						}
 					}
-					nymph_compiler::ast::expr::MapEntry::Spread(expr) => {
+					hoopoe_compiler::ast::expr::MapEntry::Spread(expr) => {
 						if let Some(target) = resolve_definition_in_expr(&expr.0, offset, doc, top_level, scope)
 						{
 							return Some(target);
@@ -2869,7 +2869,7 @@ fn resolve_definition_in_expr(
 		}
 		Expr::String(parts) => {
 			for part in parts {
-				if let nymph_compiler::ast::expr::StringPart::InterpolatedExpr(expr) = &part.0
+				if let hoopoe_compiler::ast::expr::StringPart::InterpolatedExpr(expr) = &part.0
 					&& let Some(target) = resolve_definition_in_expr(&expr.0, offset, doc, top_level, scope)
 				{
 					return Some(target);
@@ -2878,13 +2878,13 @@ fn resolve_definition_in_expr(
 			None
 		}
 		Expr::Range(range) => match range {
-			nymph_compiler::ast::expr::RangeKind::From(expr)
-			| nymph_compiler::ast::expr::RangeKind::To(expr)
-			| nymph_compiler::ast::expr::RangeKind::ToInclusive(expr) => {
+			hoopoe_compiler::ast::expr::RangeKind::From(expr)
+			| hoopoe_compiler::ast::expr::RangeKind::To(expr)
+			| hoopoe_compiler::ast::expr::RangeKind::ToInclusive(expr) => {
 				resolve_definition_in_expr(&expr.0, offset, doc, top_level, scope)
 			}
-			nymph_compiler::ast::expr::RangeKind::Exclusive { min, max }
-			| nymph_compiler::ast::expr::RangeKind::Inclusive { min, max } => {
+			hoopoe_compiler::ast::expr::RangeKind::Exclusive { min, max }
+			| hoopoe_compiler::ast::expr::RangeKind::Inclusive { min, max } => {
 				resolve_definition_in_expr(&min.0, offset, doc, top_level, scope)
 					.or_else(|| resolve_definition_in_expr(&max.0, offset, doc, top_level, scope))
 			}
@@ -2916,13 +2916,13 @@ fn resolve_definition_in_statement(
 }
 
 fn resolve_definition_in_pattern(
-	pattern: &nymph_compiler::ast::expr::Pattern,
+	pattern: &hoopoe_compiler::ast::expr::Pattern,
 	offset: usize,
 	doc: &Document,
 	scope: &[LocalBinding],
 	top_level: &std::collections::HashMap<EcoString, DefinitionTarget>,
 ) -> Option<DefinitionTarget> {
-	use nymph_compiler::ast::expr::Pattern;
+	use hoopoe_compiler::ast::expr::Pattern;
 
 	match pattern {
 		Pattern::Binding { name, inner } => {
@@ -3079,11 +3079,11 @@ fn resolve_definition_in_type(
 }
 
 fn collect_pattern_bindings(
-	pattern: &nymph_compiler::ast::expr::Pattern,
+	pattern: &hoopoe_compiler::ast::expr::Pattern,
 	doc: &Document,
 	bindings: &mut Vec<LocalBinding>,
 ) {
-	use nymph_compiler::ast::expr::Pattern;
+	use hoopoe_compiler::ast::expr::Pattern;
 
 	match pattern {
 		Pattern::Binding { name, inner } => {
@@ -3406,22 +3406,22 @@ fn find_call_site_in_expr(
 				.or_else(|| find_call_site_in_spanned_expr(index, offset, document, ctx))
 		}
 		Expr::List(items) | Expr::Tuple(items) => items.iter().find_map(|item| match &item.0 {
-			nymph_compiler::ast::expr::ListItem::Expr(expr)
-			| nymph_compiler::ast::expr::ListItem::Spread(expr) => {
+			hoopoe_compiler::ast::expr::ListItem::Expr(expr)
+			| hoopoe_compiler::ast::expr::ListItem::Spread(expr) => {
 				find_call_site_in_spanned_expr(expr, offset, document, ctx)
 			}
 		}),
 		Expr::Map(entries) => entries.iter().find_map(|entry| match &entry.0 {
-			nymph_compiler::ast::expr::MapEntry::Expr(key, value) => {
+			hoopoe_compiler::ast::expr::MapEntry::Expr(key, value) => {
 				find_call_site_in_spanned_expr(key, offset, document, ctx)
 					.or_else(|| find_call_site_in_spanned_expr(value, offset, document, ctx))
 			}
-			nymph_compiler::ast::expr::MapEntry::Spread(expr) => {
+			hoopoe_compiler::ast::expr::MapEntry::Spread(expr) => {
 				find_call_site_in_spanned_expr(expr, offset, document, ctx)
 			}
 		}),
 		Expr::String(parts) => parts.iter().find_map(|part| match &part.0 {
-			nymph_compiler::ast::expr::StringPart::InterpolatedExpr(expr) => {
+			hoopoe_compiler::ast::expr::StringPart::InterpolatedExpr(expr) => {
 				find_call_site_in_spanned_expr(expr, offset, document, ctx)
 			}
 			_ => None,
@@ -3430,13 +3430,13 @@ fn find_call_site_in_expr(
 			.as_ref()
 			.and_then(|value| find_call_site_in_spanned_expr(value, offset, document, ctx)),
 		Expr::Range(range) => match range {
-			nymph_compiler::ast::expr::RangeKind::From(expr)
-			| nymph_compiler::ast::expr::RangeKind::To(expr)
-			| nymph_compiler::ast::expr::RangeKind::ToInclusive(expr) => {
+			hoopoe_compiler::ast::expr::RangeKind::From(expr)
+			| hoopoe_compiler::ast::expr::RangeKind::To(expr)
+			| hoopoe_compiler::ast::expr::RangeKind::ToInclusive(expr) => {
 				find_call_site_in_spanned_expr(expr, offset, document, ctx)
 			}
-			nymph_compiler::ast::expr::RangeKind::Exclusive { min, max }
-			| nymph_compiler::ast::expr::RangeKind::Inclusive { min, max } => {
+			hoopoe_compiler::ast::expr::RangeKind::Exclusive { min, max }
+			| hoopoe_compiler::ast::expr::RangeKind::Inclusive { min, max } => {
 				find_call_site_in_spanned_expr(min, offset, document, ctx)
 					.or_else(|| find_call_site_in_spanned_expr(max, offset, document, ctx))
 			}
@@ -3471,7 +3471,7 @@ fn find_call_site_in_statement(
 }
 
 fn active_parameter_for_call(
-	args: &[Spanned<nymph_compiler::ast::expr::CallArg>],
+	args: &[Spanned<hoopoe_compiler::ast::expr::CallArg>],
 	offset: usize,
 ) -> usize {
 	if args.is_empty() {
@@ -3677,23 +3677,23 @@ fn find_member_access_site_in_expr(
 				.or_else(|| find_member_access_site_in_spanned_expr(index, document_offset, document, ctx))
 		}
 		Expr::List(items) | Expr::Tuple(items) => items.iter().find_map(|item| match &item.0 {
-			nymph_compiler::ast::expr::ListItem::Expr(expr)
-			| nymph_compiler::ast::expr::ListItem::Spread(expr) => {
+			hoopoe_compiler::ast::expr::ListItem::Expr(expr)
+			| hoopoe_compiler::ast::expr::ListItem::Spread(expr) => {
 				find_member_access_site_in_spanned_expr(expr, document_offset, document, ctx)
 			}
 		}),
 		Expr::Map(entries) => entries.iter().find_map(|entry| match &entry.0 {
-			nymph_compiler::ast::expr::MapEntry::Expr(key, value) => {
+			hoopoe_compiler::ast::expr::MapEntry::Expr(key, value) => {
 				find_member_access_site_in_spanned_expr(key, document_offset, document, ctx).or_else(|| {
 					find_member_access_site_in_spanned_expr(value, document_offset, document, ctx)
 				})
 			}
-			nymph_compiler::ast::expr::MapEntry::Spread(expr) => {
+			hoopoe_compiler::ast::expr::MapEntry::Spread(expr) => {
 				find_member_access_site_in_spanned_expr(expr, document_offset, document, ctx)
 			}
 		}),
 		Expr::String(parts) => parts.iter().find_map(|part| match &part.0 {
-			nymph_compiler::ast::expr::StringPart::InterpolatedExpr(expr) => {
+			hoopoe_compiler::ast::expr::StringPart::InterpolatedExpr(expr) => {
 				find_member_access_site_in_spanned_expr(expr, document_offset, document, ctx)
 			}
 			_ => None,
@@ -3702,13 +3702,13 @@ fn find_member_access_site_in_expr(
 			find_member_access_site_in_spanned_expr(value, document_offset, document, ctx)
 		}),
 		Expr::Range(range) => match range {
-			nymph_compiler::ast::expr::RangeKind::From(expr)
-			| nymph_compiler::ast::expr::RangeKind::To(expr)
-			| nymph_compiler::ast::expr::RangeKind::ToInclusive(expr) => {
+			hoopoe_compiler::ast::expr::RangeKind::From(expr)
+			| hoopoe_compiler::ast::expr::RangeKind::To(expr)
+			| hoopoe_compiler::ast::expr::RangeKind::ToInclusive(expr) => {
 				find_member_access_site_in_spanned_expr(expr, document_offset, document, ctx)
 			}
-			nymph_compiler::ast::expr::RangeKind::Exclusive { min, max }
-			| nymph_compiler::ast::expr::RangeKind::Inclusive { min, max } => {
+			hoopoe_compiler::ast::expr::RangeKind::Exclusive { min, max }
+			| hoopoe_compiler::ast::expr::RangeKind::Inclusive { min, max } => {
 				find_member_access_site_in_spanned_expr(min, document_offset, document, ctx)
 					.or_else(|| find_member_access_site_in_spanned_expr(max, document_offset, document, ctx))
 			}
@@ -3896,7 +3896,7 @@ struct Counter(value: int) {
 	func add(delta: int) -> this.value.plus(delta)
 }
 "#;
-		let document = Document::new("file:///test.nym".to_string(), source.to_string());
+		let document = Document::new("file:///test.hoo".to_string(), source.to_string());
 		let analyzer = SemanticAnalyzer::new();
 		analyzer.analyze(&document);
 
@@ -3922,7 +3922,7 @@ func add_one(value: int) -> {
 	next
 }
 "#;
-		let document = Document::new("file:///test.nym".to_string(), source.to_string());
+		let document = Document::new("file:///test.hoo".to_string(), source.to_string());
 		let analyzer = SemanticAnalyzer::new();
 		analyzer.analyze(&document);
 
@@ -3945,7 +3945,7 @@ func add_one(value: int) -> {
 		let source = r#"
 func identity(value: int) -> value
 "#;
-		let document = Document::new("file:///test.nym".to_string(), source.to_string());
+		let document = Document::new("file:///test.hoo".to_string(), source.to_string());
 		let analyzer = SemanticAnalyzer::new();
 		analyzer.analyze(&document);
 
@@ -3975,7 +3975,7 @@ interface Iterator<Item> {
 	}
 }
 "#;
-		let document = Document::new("file:///test.nym".to_string(), source.to_string());
+		let document = Document::new("file:///test.hoo".to_string(), source.to_string());
 		let analyzer = SemanticAnalyzer::new();
 		analyzer.analyze(&document);
 
@@ -4004,7 +4004,7 @@ func add_one(value: int) -> {
 	next
 }
 "#;
-		let document = Document::new("file:///test.nym".to_string(), source.to_string());
+		let document = Document::new("file:///test.hoo".to_string(), source.to_string());
 		let analyzer = SemanticAnalyzer::new();
 
 		let usage_offset = document
@@ -4034,18 +4034,18 @@ func add_one(value: int) -> {
 		let src_dir = root.join("src");
 		fs::create_dir_all(&src_dir).expect("expected src dir");
 		fs::write(
-			root.join("nymph.toml"),
-			"name = 'tmp'\nversion = '0.1.0'\nnymph_version = '*'\nauthor = ['x']\n",
+			root.join("hoopoe.toml"),
+			"name = 'tmp'\nversion = '0.1.0'\nhoopoe_version = '*'\nauthor = ['x']\n",
 		)
 		.expect("expected config file");
-		fs::write(src_dir.join("foo.nym"), "let answer = 42\n").expect("expected module");
+		fs::write(src_dir.join("foo.hoo"), "let answer = 42\n").expect("expected module");
 		fs::write(
-			src_dir.join("main.nym"),
+			src_dir.join("main.hoo"),
 			"import ./foo with (answer)\nfunc main() -> answer\n",
 		)
 		.expect("expected source file");
 
-		let document = Document::load_from_path(&src_dir.join("main.nym")).expect("expected document");
+		let document = Document::load_from_path(&src_dir.join("main.hoo")).expect("expected document");
 		let analyzer = SemanticAnalyzer::new();
 		let usage_offset = document
 			.content
@@ -4059,7 +4059,7 @@ func add_one(value: int) -> {
 			.get_definition_at_position(position.line, position.character, &document)
 			.expect("expected imported definition target");
 
-		assert!(target.uri.ends_with("/foo.nym"));
+		assert!(target.uri.ends_with("/foo.hoo"));
 		assert_eq!(target.span.start, 4);
 	}
 
@@ -4071,7 +4071,7 @@ func add_one(value: int) -> {
 	ne
 }
 "#;
-		let document = Document::new("file:///test.nym".to_string(), source.to_string());
+		let document = Document::new("file:///test.hoo".to_string(), source.to_string());
 		let analyzer = SemanticAnalyzer::new();
 		let offset = document
 			.content
@@ -4094,7 +4094,7 @@ func add_one(value: int) -> {
 import ./math with (sum)
 func main() -> su
 "#;
-		let document = Document::new("file:///test.nym".to_string(), source.to_string());
+		let document = Document::new("file:///test.hoo".to_string(), source.to_string());
 		let analyzer = SemanticAnalyzer::new();
 		let offset = document
 			.content
@@ -4118,7 +4118,7 @@ func add_one(value: int) -> {
 	next
 }
 "#;
-		let document = Document::new("file:///test.nym".to_string(), source.to_string());
+		let document = Document::new("file:///test.hoo".to_string(), source.to_string());
 		let analyzer = SemanticAnalyzer::new();
 		let offset = document
 			.content
@@ -4152,21 +4152,21 @@ func add_one(value: int) -> {
 		let src_dir = root.join("src");
 		fs::create_dir_all(&src_dir).expect("expected src dir");
 		fs::write(
-			root.join("nymph.toml"),
-			"name = 'tmp'\nversion = '0.1.0'\nnymph_version = '*'\nauthor = ['x']\n",
+			root.join("hoopoe.toml"),
+			"name = 'tmp'\nversion = '0.1.0'\nhoopoe_version = '*'\nauthor = ['x']\n",
 		)
 		.expect("expected config file");
-		fs::write(src_dir.join("foo.nym"), "let answer = 42\n").expect("expected module");
+		fs::write(src_dir.join("foo.hoo"), "let answer = 42\n").expect("expected module");
 		fs::write(
-			src_dir.join("main.nym"),
+			src_dir.join("main.hoo"),
 			"import ./foo with (answer)\nfunc main() -> answer\n",
 		)
 		.expect("expected source file");
 
 		let main_document =
-			Document::load_from_path(&src_dir.join("main.nym")).expect("expected document");
+			Document::load_from_path(&src_dir.join("main.hoo")).expect("expected document");
 		let foo_document =
-			Document::load_from_path(&src_dir.join("foo.nym")).expect("expected module document");
+			Document::load_from_path(&src_dir.join("foo.hoo")).expect("expected module document");
 		let analyzer = SemanticAnalyzer::new();
 		let offset = main_document
 			.content
@@ -4204,7 +4204,7 @@ func add_one(value: int) -> {
 func add(left: int, right: int) -> left
 func main() -> add(1, 2)
 "#;
-		let document = Document::new("file:///test.nym".to_string(), source.to_string());
+		let document = Document::new("file:///test.hoo".to_string(), source.to_string());
 		let analyzer = SemanticAnalyzer::new();
 		let offset = document
 			.content
@@ -4232,7 +4232,7 @@ func main() -> {
 	point.x
 }
 "#;
-		let document = Document::new("file:///test.nym".to_string(), source.to_string());
+		let document = Document::new("file:///test.hoo".to_string(), source.to_string());
 		let analyzer = SemanticAnalyzer::new();
 		let offset = document
 			.content

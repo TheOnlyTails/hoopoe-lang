@@ -1,13 +1,13 @@
 # Generated API documentation
 
-`nymph doc` checks a project and writes a browsable, static HTML site for every
+`hoopoe doc` checks a project and writes a browsable, static HTML site for every
 project module reachable from the manifest's `build.entry` module.
 
 ```sh
-nymph doc
+hoopoe doc
 ```
 
-The default output directory is `target/nymph/doc` under the project root. Open
+The default output directory is `target/hoopoe/doc` under the project root. Open
 `index.html` directly in a browser; the generated site does not need an HTTP
 server or JavaScript.
 
@@ -16,25 +16,25 @@ server or JavaScript.
 Use `--output` to replace a different directory:
 
 ```sh
-nymph doc --output build/api
+hoopoe doc --output build/api
 ```
 
 Private declarations, fields, and members are omitted by default. Include them
 when generating internal documentation:
 
 ```sh
-nymph doc --document-private-items
+hoopoe doc --document-private-items
 ```
 
 Pass `--open` to ask the system browser to open the generated index after the
 new site has been published successfully:
 
 ```sh
-nymph doc --open
+hoopoe doc --open
 ```
 
 Like other project commands, `doc` accepts the global `--manifest <PATH>` option
-before or after the subcommand. The selected path is authoritative: Nymph does
+before or after the subcommand. The selected path is authoritative: Hoopoe does
 not search for another manifest when that path is missing or invalid. Without
 `--manifest`, discovery starts in the current directory and searches its
 ancestors. Unlike `check`, `build`, and `run`, documentation has no loose-file

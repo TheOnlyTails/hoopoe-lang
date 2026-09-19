@@ -5,16 +5,13 @@
 			"label": "npm: compile - extension",
 			"type": "shell",
 			"command": "pnpm",
-			"args": [
-				"run",
-				"compile"
-			],
+			"args": ["run", "compile"],
 			"options": {
-				"cwd": "${workspaceFolder}/extension",
+				"cwd": "${workspaceFolder}/extension"
 			},
 			"isBackground": false,
 			"presentation": {
-				"reveal": "silent",
+				"reveal": "silent"
 			},
 			"problemMatcher": "$tsc"
 		},
@@ -22,10 +19,7 @@
 			"label": "npm: watch - extension",
 			"type": "shell",
 			"command": "pnpm",
-			"args": [
-				"run",
-				"watch"
-			],
+			"args": ["run", "watch"],
 			"options": {
 				"cwd": "${workspaceFolder}/extension"
 			},
@@ -39,18 +33,13 @@
 			"label": "Build LSP Server (release)",
 			"type": "shell",
 			"command": "cargo",
-			"args": [
-				"build",
-				"--release",
-				"--package",
-				"nymph-lsp"
-			],
+			"args": ["build", "--release", "--package", "hoopoe-lsp"],
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
 			"isBackground": false,
 			"presentation": {
-				"reveal": "silent",
+				"reveal": "silent"
 			},
 			"problemMatcher": "$rustc"
 		},
@@ -58,11 +47,7 @@
 			"label": "Build LSP Server (debug)",
 			"type": "shell",
 			"command": "cargo",
-			"args": [
-				"build",
-				"--package",
-				"nymph-lsp"
-			],
+			"args": ["build", "--package", "hoopoe-lsp"],
 			"isBackground": false,
 			"presentation": {
 				"reveal": "silent"
@@ -71,10 +56,7 @@
 		},
 		{
 			"label": "Build extension + LSP server",
-			"dependsOn": [
-				"Build LSP Server (debug)",
-				"npm: watch - extension"
-			],
+			"dependsOn": ["Build LSP Server (debug)", "npm: watch - extension"],
 			"dependsOrder": "parallel",
 			"group": {
 				"kind": "build",

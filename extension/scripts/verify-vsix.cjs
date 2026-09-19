@@ -28,7 +28,7 @@ function verifyVsix(vsix, target) {
 		"VSIX must not contain unbundled TypeScript output",
 	);
 	if (!target.startsWith("win32-")) {
-		const temp = fs.mkdtempSync(path.join(os.tmpdir(), "nymph-vsix-"));
+		const temp = fs.mkdtempSync(path.join(os.tmpdir(), "hoopoe-vsix-"));
 		execFileSync("unzip", ["-qq", vsix, `extension/server/${spec.binary}`, "-d", temp]);
 		assert.notEqual(
 			fs.statSync(path.join(temp, "extension", "server", spec.binary)).mode & 0o111,

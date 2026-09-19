@@ -1,20 +1,20 @@
 use ariadne::{Color, Config, Label, Report, ReportKind, Source};
-use nymph_compiler::config::load_compiler_project_config;
-use nymph_compiler::db::{DiagnosticKind, Diagnostics, NymphDatabase, SourceFile};
-use nymph_compiler::queries::{parse_file, typecheck_file};
+use hoopoe_compiler::config::load_compiler_project_config;
+use hoopoe_compiler::db::{DiagnosticKind, Diagnostics, HoopoeDatabase, SourceFile};
+use hoopoe_compiler::queries::{parse_file, typecheck_file};
 use std::fs::read_to_string;
 use std::path::PathBuf;
 
 #[test]
 fn stdlib_tests() {
-	let db = NymphDatabase::default();
+	let db = HoopoeDatabase::default();
 	let stdlib_root = PathBuf::from("../stdlib")
 		.canonicalize()
 		.expect("stdlib directory not found");
 	let config = load_compiler_project_config(&db, stdlib_root, PathBuf::from("dist"))
 		.expect("expected stdlib config to load");
 
-	for file in glob::glob("../stdlib/src/**/*.nym")
+	for file in glob::glob("../stdlib/src/**/*.hoo")
 		.unwrap()
 		.filter_map(Result::ok)
 	{

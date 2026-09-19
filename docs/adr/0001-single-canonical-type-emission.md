@@ -1,6 +1,6 @@
 # Single canonical type emission
 
-Every enum and struct is compiled to exactly one runtime definition — its class, prototype, and methods, emitted once from its `.nym` source (including the `impl`s that target it) — and every reference (user code, other modules, linked externals) imports that one definition. This replaces the previous per-consumer *materialization*, where a prelude type was re-emitted into each module that used it, producing duplicate prototype objects that interoperated only at the tag level and left externally-constructed values (e.g. an `Option` returned by `list.get`) without any methods.
+Every enum and struct is compiled to exactly one runtime definition — its class, prototype, and methods, emitted once from its `.hoo` source (including the `impl`s that target it) — and every reference (user code, other modules, linked externals) imports that one definition. This replaces the previous per-consumer _materialization_, where a prelude type was re-emitted into each module that used it, producing duplicate prototype objects that interoperated only at the tag level and left externally-constructed values (e.g. an `Option` returned by `list.get`) without any methods.
 
 ## Considered options
 

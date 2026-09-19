@@ -1,10 +1,10 @@
 {
 	"$schema": "../node_modules/wrangler/config-schema.json",
-	"name": "nymph-lang",
+	"name": "hoopoe-lang",
 	"compatibility_date": "2026-09-06",
 	"workers_dev": true,
 	"preview_urls": true,
-	"routes": [{ "pattern": "nymphlang.dev/*", "zone_name": "nymphlang.dev" }],
+	"routes": [{ "pattern": "hoopoelang.dev/*", "zone_name": "hoopoelang.dev" }],
 	"assets": {
 		"directory": "./.vitepress/dist",
 		"html_handling": "auto-trailing-slash",

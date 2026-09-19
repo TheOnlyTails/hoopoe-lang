@@ -1,6 +1,6 @@
-# A tour of Nymph
+# A tour of Hoopoe
 
-This tour builds a small immutable program. Every executable sample is tagged `nym` and checked by
+This tour builds a small immutable program. Every executable sample is tagged `hoo` and checked by
 the compiler; the [reference](../reference/) supplies the complete rules.
 
 ## Functions, blocks, and immutable bindings
@@ -8,7 +8,7 @@ the compiler; the [reference](../reference/) supplies the complete rules.
 A function body is one expression. A block evaluates steps in order and returns its final value;
 `let` introduces an immutable binding.
 
-```nym
+```hoo
 func scaled_average(a: int, b: int, scale: int): float = {
   let sum = a + b
   let scaled = sum * scale
@@ -20,7 +20,7 @@ func scaled_average(a: int, b: int, scale: int): float = {
 
 Struct fields do not change in place. A function can preserve the old value and return a new one.
 
-```nym
+```hoo
 struct Task(title: string, done: boolean)
 func complete(task: Task): Task = Task(title = task.title, done = true)
 
@@ -36,7 +36,7 @@ func before_and_after(): #(boolean, boolean) = {
 Enums may embed variant sets. Widening changes the nominal static view, not the underlying variant.
 Embedding is not an implicit `Into` implementation.
 
-```nym
+```hoo
 enum Priority { Low, Medium, High }
 enum Scheduling { ...Priority, Deferred }
 
@@ -53,10 +53,10 @@ sets, selected variants, pattern refinement, and static method dispatch.
 
 ## Absence and failure are values
 
-Nymph has no `null` and no exceptions. `Option<T>` represents presence or absence;
+Hoopoe has no `null` and no exceptions. `Option<T>` represents presence or absence;
 `Result<T, E>` represents expected failure.
 
-```nym
+```hoo
 enum Priority { Low, Medium, High }
 
 func priority(code: int): Result<Priority, string> = match (code) {
@@ -72,7 +72,7 @@ func priority(code: int): Result<Priority, string> = match (code) {
 An iterator's `next()` returns nominal `Iteration<Item, self>` successor state. `for` is a dedicated
 compiler operation over that protocol; it is not a mutable iterator desugaring.
 
-```nym
+```hoo
 struct Counter(next: int, end: int)
 impl Iterator<int> for Counter {
   func next(): Iteration<int, self> = if (this.next > this.end) {
@@ -92,7 +92,7 @@ func find_three(): Option<int> = for@values (value in Counter(next = 1, end = 4)
 There is no source `while`. A state loop gives every iteration fresh immutable bindings and replaces
 named values simultaneously on `continue`.
 
-```nym
+```hoo
 func sum_to(limit: int): int = loop@sum (
   let next = 1
   let total = 0
@@ -110,7 +110,7 @@ See [Iteration](../reference/iteration) and [Immutability](../reference/mutabili
 structure to stderr regardless of field visibility; release emission erases the observer but keeps
 operand evaluation. Intentional output uses effectful I/O.
 
-```nym
+```hoo
 struct Task(public title: string, private note: string)
 func inspect(task: Task): Task = echo task
 ```
@@ -119,9 +119,9 @@ The Node launcher never prints a successful root value. `main` may return `void`
 `Result<void, E>` (or the corresponding `Task`), with exact error and exit handling documented in
 [Projects and the Node launcher](../reference/projects#executable-roots-and-the-node-launcher).
 
-```nym
+```hoo
 import std/io
-func main(): void = io.println("Hello from immutable Nymph")
+func main(): void = io.println("Hello from immutable Hoopoe")
 ```
 
 ## Next steps

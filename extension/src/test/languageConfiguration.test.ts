@@ -36,13 +36,13 @@ void test("comment editing delimiters match the TextMate grammar", async () => {
 		await readFile(join(extensionRoot, "language-configuration.json"), "utf8"),
 	) as LanguageConfiguration;
 	const grammar = JSON.parse(
-		await readFile(join(extensionRoot, "syntaxes", "nymph.tmLanguage.json"), "utf8"),
+		await readFile(join(extensionRoot, "syntaxes", "hoopoe.tmLanguage.json"), "utf8"),
 	) as TextMateGrammar;
 	const patterns = grammar.repository.comments.patterns;
 	const lineComment = patterns.find(
-		(pattern) => pattern.name === "comment.line.double-slash.nymph",
+		(pattern) => pattern.name === "comment.line.double-slash.hoopoe",
 	);
-	const blockComment = patterns.find((pattern) => pattern.name === "comment.block.nymph");
+	const blockComment = patterns.find((pattern) => pattern.name === "comment.block.hoopoe");
 
 	assert.equal(configuration.comments?.lineComment, lineComment?.match?.replace(".*$", ""));
 	assert.deepEqual(
@@ -56,7 +56,7 @@ void test("workspace diagnostics expose development and release compiler profile
 	const manifest = JSON.parse(
 		await readFile(join(extensionRoot, "package.json"), "utf8"),
 	) as ExtensionManifest;
-	const profile = manifest.contributes?.configuration?.properties?.["nymph.buildProfile"];
+	const profile = manifest.contributes?.configuration?.properties?.["hoopoe.buildProfile"];
 
 	assert.equal(profile?.type, "string");
 	assert.deepEqual(profile?.enum, ["development", "release"]);
@@ -64,5 +64,5 @@ void test("workspace diagnostics expose development and release compiler profile
 	assert.equal(profile?.scope, "window");
 
 	const clientSource = await readFile(join(extensionRoot, "src", "extension.ts"), "utf8");
-	assert.match(clientSource, /configurationSection:\s*"nymph"/);
+	assert.match(clientSource, /configurationSection:\s*"hoopoe"/);
 });

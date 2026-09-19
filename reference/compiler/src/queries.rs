@@ -204,8 +204,8 @@ pub fn resolve_import(
 		module_path = module_path.join(segment);
 	}
 
-	let file_path = module_path.with_extension("nym");
-	let dir_path = module_path.join("mod.nym");
+	let file_path = module_path.with_extension("hoo");
+	let dir_path = module_path.join("mod.hoo");
 
 	let file_exists = file_path.exists();
 	let dir_exists = dir_path.exists();
@@ -290,7 +290,7 @@ pub fn load_source_file(db: &dyn Db, path: String) -> SourceFile {
 #[salsa::tracked]
 pub fn project_source_files(db: &dyn Db, config: ProjectConfig) -> Vec<SourceFile> {
 	let mut paths = vec![];
-	collect_nymph_files(&config.root(db).join("src"), &mut paths);
+	collect_hoopoe_files(&config.root(db).join("src"), &mut paths);
 	paths.sort();
 
 	paths
@@ -373,7 +373,7 @@ pub fn external_project_asset(
 #[salsa::tracked]
 pub fn bundle_project(db: &dyn Db, config: ProjectConfig) -> BundleResult {
 	let mut paths = vec![];
-	collect_nymph_files(&config.root(db).join("src"), &mut paths);
+	collect_hoopoe_files(&config.root(db).join("src"), &mut paths);
 	paths.sort();
 
 	let project_root = config.root(db).clone();
@@ -450,7 +450,7 @@ fn bundle_project_file(
 	output_dir: PathBuf,
 	implicit_prelude: bool,
 ) -> FileBundleResult {
-	let db = crate::db::NymphDatabase::default();
+	let db = crate::db::HoopoeDatabase::default();
 	let file = load_source_file(&db, source_path.to_string_lossy().to_string());
 	let config = ProjectConfig::new(&db, project_root, output_dir, implicit_prelude);
 	let emitted_module = transpile_project_file(&db, file, config);
@@ -483,7 +483,7 @@ fn compiler_thread_pool() -> &'static rayon::ThreadPool {
 	})
 }
 
-fn collect_nymph_files(dir: &Path, files: &mut Vec<PathBuf>) {
+fn collect_hoopoe_files(dir: &Path, files: &mut Vec<PathBuf>) {
 	let Ok(entries) = fs::read_dir(dir) else {
 		return;
 	};
@@ -491,8 +491,8 @@ fn collect_nymph_files(dir: &Path, files: &mut Vec<PathBuf>) {
 	for entry in entries.flatten() {
 		let path = entry.path();
 		if path.is_dir() {
-			collect_nymph_files(&path, files);
-		} else if path.extension().is_some_and(|ext| ext == "nym") {
+			collect_hoopoe_files(&path, files);
+		} else if path.extension().is_some_and(|ext| ext == "hoo") {
 			files.push(path);
 		}
 	}

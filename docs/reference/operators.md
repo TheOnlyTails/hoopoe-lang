@@ -1,7 +1,7 @@
 # Operators
 
-Most of Nymph's operators are backed by an interface — implement the interface for your type and
-the operator syntax starts working for it. These interfaces are part of Nymph's **ambient core**,
+Most of Hoopoe's operators are backed by an interface — implement the interface for your type and
+the operator syntax starts working for it. These interfaces are part of Hoopoe's **ambient core**,
 alongside APIs such as `Option`, `Result`, and iteration interfaces. Every one of them is available
 with no `import`, in every module; this is separate from opt-in `std/...` modules.
 
@@ -28,7 +28,7 @@ stored in `int` variables remain signed and use the corresponding mixed-type ove
 | `a ** b` | `Power<Other, Output>`     | `power`     |
 | `-a`     | `Negate<Output>`           | `negate`    |
 
-```nym
+```hoo
 struct Vec2(x: int, y: int)
 
 impl Plus<Other = Vec2, Output = Vec2> for Vec2 {
@@ -93,7 +93,7 @@ including signed zero, `NaN`, and infinities.
 `int` and `boolean` already implement the bitwise set out of the box (`&`/`|`/`^`/`~` work on both
 natively), so overloading them yourself is for a type of your own:
 
-```nym
+```hoo
 struct Mask(bits: int)
 impl BitAnd<Other = Mask, Output = Mask> for Mask {
   func bit_and(other: Mask): Mask = Mask(bits = this.bits & other.bits)
@@ -119,7 +119,7 @@ func combine(a: Mask, b: Mask): Mask = a & ~b
 `GreaterThan`); the four comparison operators are default methods built on top of it, so
 implementing `compare_to` alone lights up all four:
 
-```nym
+```hoo
 struct Version(major: int, minor: int)
 impl Comparable<Other = Version> for Version {
   func compare_to(other: Version): Order =
@@ -139,7 +139,7 @@ func outdated(a: Version, b: Version): boolean = a < b
 available only when the type implements that interface. The standard library provides mixed
 signed/unsigned integer equality:
 
-```nym
+```hoo
 func same(a: int, b: uint): boolean = a.equals(b)
 func different(a: int, b: uint): boolean = a.not_equals(b)
 ```
@@ -152,7 +152,7 @@ implements.
 `item in collection` and `item !in collection` dispatch to `Contains<Item>` — note the **receiver
 is the collection**, the right-hand operand, with `item` passed as the argument:
 
-```nym
+```hoo
 struct Bag(n: int)
 impl Contains<Item = int> for Bag {
   func contains(item: int): boolean = item == this.n
@@ -171,7 +171,7 @@ func lacks(b: Bag, x: int): boolean = x !in b
 `a.unwrap(fallback)` — see [Expressions](./expressions#unwrap) for why this is unconditional rather
 than short-circuiting.
 
-```nym
+```hoo
 struct MaybeInt(present: boolean, value: int)
 impl Unwrap<Output = int> for MaybeInt {
   func unwrap(default: int): int = if (this.present) { this.value } else { default }
@@ -186,7 +186,7 @@ For a user type, `value as Target` dispatches to `Into<Target>`'s `into` method 
 [Expressions](./expressions#as-and-is) for the built-in scalar conversions `as` runs between
 `int`/`uint`/`float`/`char` without any interface involved.
 
-```nym
+```hoo
 struct Meters(value: int)
 impl Into<string> for Meters {
   func into(): string = "${this.value}m"

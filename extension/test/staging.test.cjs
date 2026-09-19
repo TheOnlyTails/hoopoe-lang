@@ -7,20 +7,20 @@ const { stageServer, targetSpec } = require("../scripts/stage-server.cjs");
 
 test("maps all six VS Code targets to Rust targets and binary names", () => {
 	assert.deepEqual(targetSpec, {
-		"linux-x64": { rust: "x86_64-unknown-linux-gnu", binary: "nymph-lsp" },
-		"linux-arm64": { rust: "aarch64-unknown-linux-gnu", binary: "nymph-lsp" },
-		"win32-x64": { rust: "x86_64-pc-windows-gnu", binary: "nymph-lsp.exe" },
-		"win32-arm64": { rust: "aarch64-pc-windows-gnullvm", binary: "nymph-lsp.exe" },
-		"darwin-x64": { rust: "x86_64-apple-darwin", binary: "nymph-lsp" },
-		"darwin-arm64": { rust: "aarch64-apple-darwin", binary: "nymph-lsp" },
+		"linux-x64": { rust: "x86_64-unknown-linux-gnu", binary: "hoopoe-lsp" },
+		"linux-arm64": { rust: "aarch64-unknown-linux-gnu", binary: "hoopoe-lsp" },
+		"win32-x64": { rust: "x86_64-pc-windows-gnu", binary: "hoopoe-lsp.exe" },
+		"win32-arm64": { rust: "aarch64-pc-windows-gnullvm", binary: "hoopoe-lsp.exe" },
+		"darwin-x64": { rust: "x86_64-apple-darwin", binary: "hoopoe-lsp" },
+		"darwin-arm64": { rust: "aarch64-apple-darwin", binary: "hoopoe-lsp" },
 	});
 });
 
 test("stages exactly one executable server", () => {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), "nymph-stage-"));
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), "hoopoe-stage-"));
 	const source = path.join(root, "source");
 	fs.writeFileSync(source, "server", { mode: 0o644 });
 	const output = stageServer("linux-x64", source, root);
-	assert.deepEqual(fs.readdirSync(path.join(root, "server")), ["nymph-lsp"]);
+	assert.deepEqual(fs.readdirSync(path.join(root, "server")), ["hoopoe-lsp"]);
 	assert.equal(fs.statSync(output).mode & 0o111, 0o111);
 });

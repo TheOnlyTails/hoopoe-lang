@@ -1,6 +1,6 @@
 # Issue tracker: GitHub
 
-Issues and PRDs for this repo live as GitHub issues (`TheOnlyTails/nymph_lang`). Use the `gh` CLI for all operations.
+Issues and PRDs for this repo live as GitHub issues (`TheOnlyTails/hoopoe_lang`). Use the `gh` CLI for all operations.
 
 ## Conventions
 

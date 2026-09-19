@@ -35,7 +35,7 @@ jobs:
         # Keep standalone compiler sessions alive within their libtest binaries
         # while nextest runs the rest of the workspace in parallel.
         run: |
-          cargo test -p nymph-compiler \
+          cargo test -p hoopoe-compiler \
             --test arithmetic \
             --test boxing \
             --test collections \
@@ -47,7 +47,7 @@ jobs:
           libtest_pid=$!
 
           cargo nextest run -E \
-            'not (package(nymph-compiler) &
+            'not (package(hoopoe-compiler) &
             (binary(arithmetic) | binary(boxing) | binary(collections) |
             binary(conditions) | binary(exact_integers) | binary(golden_programs) |
             binary(pipeline) | binary(run_node)))' &

@@ -32,7 +32,7 @@ assert.deepEqual(
 );
 
 const staleClaims = [
-	["legacy source suffix", new RegExp(String.raw`\.nym` + "ph" + String.raw`\b`, "i")],
+	["legacy source suffix", new RegExp(String.raw`\.hoo` + "poe" + String.raw`\b`, "i")],
 	["parent debug/release lookup", /target[\\/](?:debug|release)/i],
 	["untargeted VSIX packaging", /vsce package(?![^\n]*--target)/i],
 	["scaffold quickstart", /vsc-extension-quickstart/i],
@@ -48,7 +48,7 @@ for (const [file, contents] of markdownFiles) {
 	const userContents = file === "README.md" ? userReadme : contents;
 	assert.doesNotMatch(
 		userContents,
-		/cargo\s+build[\s\S]{0,200}nymph-lsp/i,
+		/cargo\s+build[\s\S]{0,200}hoopoe-lsp/i,
 		`${file} tells end users to build a separate LSP`,
 	);
 }
@@ -119,11 +119,11 @@ assert.match(
 	new RegExp(String.raw`VS Code ${vscodeFloor.replace(".", String.raw`\.`)} or newer`, "i"),
 	"README.md must match the VS Code compatibility floor in package.json",
 );
-assert.match(readme, /\.nym\b/);
-assert.match(readme, /nymph\.server\.path/);
-assert.match(readme, /Unsupported\s+Nymph LSP host/i);
+assert.match(readme, /\.hoo\b/);
+assert.match(readme, /hoopoe\.server\.path/);
+assert.match(readme, /Unsupported\s+Hoopoe LSP host/i);
 assert.match(readme, /diagnostics[\s\S]{0,100}\*\*Problems\*\*/i);
-assert.match(readme, /Nymph Language Server[\s\S]*?Output/i);
+assert.match(readme, /Hoopoe Language Server[\s\S]*?Output/i);
 assert.match(readme, /Developer: Set Log Level[\s\S]{0,100}\*\*Trace\*\*/i);
 assert.doesNotMatch(readme, /syntax errors[\s\S]{0,100}(?:Output|channel)/i);
 assert.match(readme, /vsce package[^\n]*--target/i);
@@ -136,18 +136,20 @@ assert.match(functionReference, /`func name\(params\): ReturnType = body`/);
 const snippets = markdownFiles
 	.filter(([file]) => !file.startsWith(`test${path.sep}fixtures${path.sep}`))
 	.flatMap(([file, contents]) =>
-		[...contents.matchAll(/```(?:nym|nymph)(?:[ \t]+[^\n]*)?\r?\n([\s\S]*?)```/g)].map((match) => ({
-			file,
-			source: match[1],
-		})),
+		[...contents.matchAll(/```(?:hoo|hoopoe)(?:[ \t]+[^\n]*)?\r?\n([\s\S]*?)```/g)].map(
+			(match) => ({
+				file,
+				source: match[1],
+			}),
+		),
 	);
-assert.ok(snippets.length > 0, "README.md must contain a Nymph example");
+assert.ok(snippets.length > 0, "README.md must contain a Hoopoe example");
 for (const { source } of snippets) {
-	assert.doesNotMatch(source, /^\s*fn\b/m, "Nymph examples must not use obsolete fn syntax");
+	assert.doesNotMatch(source, /^\s*fn\b/m, "Hoopoe examples must not use obsolete fn syntax");
 	assert.match(
 		source,
 		/^func\s+\w+\([^)]*\)(?::\s*[^=\n]+)?\s*=\s*.+/m,
-		"Nymph examples must use func name(params): ReturnType = body syntax",
+		"Hoopoe examples must use func name(params): ReturnType = body syntax",
 	);
 }
 
@@ -167,13 +169,13 @@ for (const [file, contents] of markdownFiles) {
 	}
 }
 
-const snippetDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "nymph-extension-docs-"));
+const snippetDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "hoopoe-extension-docs-"));
 try {
 	for (const [index, { file, source }] of snippets.entries()) {
-		const snippetPath = path.join(snippetDirectory, `snippet-${index}.nym`);
+		const snippetPath = path.join(snippetDirectory, `snippet-${index}.hoo`);
 		fs.writeFileSync(snippetPath, source);
 		try {
-			execFileSync("cargo", ["run", "--quiet", "-p", "nymph-cli", "--", "check", snippetPath], {
+			execFileSync("cargo", ["run", "--quiet", "-p", "hoopoe-cli", "--", "check", snippetPath], {
 				cwd: repositoryRoot,
 				stdio: "pipe",
 			});
@@ -184,7 +186,7 @@ try {
 			])
 				.toString()
 				.trim();
-			assert.fail(`${file} contains an invalid Nymph snippet${details ? `:\n${details}` : ""}`);
+			assert.fail(`${file} contains an invalid Hoopoe snippet${details ? `:\n${details}` : ""}`);
 		}
 	}
 } finally {
@@ -192,5 +194,5 @@ try {
 }
 
 console.log(
-	`Checked ${markdownFiles.length} Markdown files, ${snippets.length} Nymph snippet, and ${supportedTargets.length} packaging targets.`,
+	`Checked ${markdownFiles.length} Markdown files, ${snippets.length} Hoopoe snippet, and ${supportedTargets.length} packaging targets.`,
 );

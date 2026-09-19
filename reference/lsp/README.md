@@ -1,17 +1,17 @@
-# Nymph Language Server
+# Hoopoe Language Server
 
-A Language Server Protocol (LSP) implementation for the Nymph programming language.
+A Language Server Protocol (LSP) implementation for the Hoopoe programming language.
 
 ## Features
 
-- **Document Management**: Track open/close and updates to Nymph source files
+- **Document Management**: Track open/close and updates to Hoopoe source files
 - **Hover Information**: Display type information and symbol details on hover
 - **Semantic Tokenization**: Syntax highlighting with semantic token types
   - Keywords, functions, variables, types, interfaces, and more
   - Token modifiers for declarations, definitions, builtins, and mutability
 - **Symbol Navigation**: Document symbol provider for outline and go-to-symbol
 - **Code Completion**: Basic keyword and built-in completions
-- **Parsing Integration**: Full integration with the Nymph compiler's parser
+- **Parsing Integration**: Full integration with the Hoopoe compiler's parser
 
 ## Architecture
 
@@ -26,7 +26,7 @@ A Language Server Protocol (LSP) implementation for the Nymph programming langua
 
 ### How It Works
 
-1. **Document Lifecycle**: When a document is opened/changed, it's stored in the workspace and parsed using the Nymph compiler
+1. **Document Lifecycle**: When a document is opened/changed, it's stored in the workspace and parsed using the Hoopoe compiler
 2. **Analysis**: The semantic analyzer extracts symbols and type information from the parsed AST
 3. **Tokenization**: Semantic tokens are generated for syntax highlighting
 4. **LSP Responses**: The server responds to client requests with type hints, symbols, completions, etc.
@@ -34,15 +34,15 @@ A Language Server Protocol (LSP) implementation for the Nymph programming langua
 ## Building
 
 ```bash
-cargo build --release --package nymph-lsp
+cargo build --release --package hoopoe-lsp
 ```
 
-The binary will be at `target/release/nymph-lsp`
+The binary will be at `target/release/hoopoe-lsp`
 
 ## Running
 
 ```bash
-./target/release/nymph-lsp
+./target/release/hoopoe-lsp
 ```
 
 The server communicates via stdin/stdout using the LSP protocol.
@@ -70,14 +70,14 @@ The server communicates via stdin/stdout using the LSP protocol.
 
 ### VS Code
 
-To use with VS Code, create a `.vscode/extensions/nymph-lsp/` directory and configure the extension client:
+To use with VS Code, create a `.vscode/extensions/hoopoe-lsp/` directory and configure the extension client:
 
 ```json
 {
-	"language": "nymph",
+	"language": "hoopoe",
 	"scheme": "file",
 	"initializationOptions": {},
-	"documentSelector": [{ "language": "nymph", "scheme": "file" }]
+	"documentSelector": [{ "language": "hoopoe", "scheme": "file" }]
 }
 ```
 
@@ -88,9 +88,9 @@ Configure the server path in your LSP client extension.
 For Neovim with `nvim-lspconfig`:
 
 ```lua
-require('lspconfig').nymph.setup {
-  cmd = {"/path/to/nymph-lsp"},
-  filetypes = {"nymph"},
+require('lspconfig').hoopoe.setup {
+  cmd = {"/path/to/hoopoe-lsp"},
+  filetypes = {"hoopoe"},
   root_dir = require('lspconfig.util').root_pattern(".git", "Cargo.toml"),
 }
 ```
@@ -100,7 +100,7 @@ require('lspconfig').nymph.setup {
 Run the test suite:
 
 ```bash
-cargo test --package nymph-lsp
+cargo test --package hoopoe-lsp
 ```
 
 ## Dependencies
@@ -108,7 +108,7 @@ cargo test --package nymph-lsp
 - `tower-lsp` - LSP protocol framework
 - `smol` - Async runtime
 - `serde` / `serde_json` - JSON serialization
-- `nymph-compiler` - Nymph language compiler
+- `hoopoe-compiler` - Hoopoe language compiler
 - `ecow` - Efficient copy-on-write strings
 - `url` - URL parsing for file URIs
 

@@ -1,0 +1,17 @@
+[package]
+name = "hoopoe-diagnostics"
+description = "Backend-agnostic diagnostics and pretty rendering for the Hoopoe toolchain."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+hoopoe-ast = { workspace = true }
+ariadne = { workspace = true }
+ecow = { workspace = true }
+
+[lints.clippy]
+all = "warn"

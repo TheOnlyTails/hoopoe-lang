@@ -1,6 +1,6 @@
 # shapes
 
-Model a few geometric figures and compute their areas — the classic tour of Nymph's
+Model a few geometric figures and compute their areas — the classic tour of Hoopoe's
 type system, using nothing but the language itself.
 
 What it shows:

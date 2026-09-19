@@ -1,4 +1,4 @@
-import initCompiler, { inspect } from "../../wasm/nymph_wasm.js";
+import initCompiler, { inspect } from "../../wasm/hoopoe_wasm.js";
 
 type InspectRequest = {
 	id: number;

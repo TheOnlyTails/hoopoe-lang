@@ -12,7 +12,7 @@ signed 64-bit `int` type, while `u`-suffixed or contextually inferred literals u
 Integers are sequences of digits, optionally separated by underscores,
 in either binary, octal, decimal, or hexadecimal.
 
-```nymph
+```hoopoe
 12345 // decimal
 1_000_000_000 // digit separators
 0b10101101 // binary
@@ -29,7 +29,7 @@ A negated literal such as `-1` is an `int` expression, not a non-negative litera
 inference. Likewise, an `int` variable is never implicitly converted to `uint` or `float`. The `u`
 suffix remains useful where no expected or known operand type is available.
 
-```nymph
+```hoopoe
 10u
 func ten(): uint = 10
 func previous(index: uint): uint = index - 1
@@ -40,7 +40,7 @@ func offset(index: uint): int = index + -1
 Floats are only decimal, and they may include underscore digit separators, scientific-notation exponents.
 Decimal integer literals suffixed with `f` are treated as floats of the same value.
 
-```nymph
+```hoopoe
 1.0 // regular float
 0.24e10 // exponent
 9e-1 // dotless float with exponent
@@ -51,7 +51,7 @@ Decimal integer literals suffixed with `f` are treated as floats of the same val
 Note that digit separators for both integers and floats may _only_ appear between digits,
 not other parts such as the `f` float prefix, `0b` radix specifier, etc:
 
-```nymph
+```hoopoe
 0b_0110 // ❌
 10_f // ❌
 1._2 // ❌
@@ -62,7 +62,7 @@ not other parts such as the `f` float prefix, `0b` radix specifier, etc:
 Boolean literals are `true` and `false`, which are the only two values of the `boolean` type,
 represented by their respective case-sensitive keywords.
 
-```nymph
+```hoopoe
 true
 false
 ```
@@ -76,7 +76,7 @@ The only available escape sequences are newline (`\n`), tab (`\t`), carriage ret
 apostrophe (`\'`), backslash (`\\`), and the Unicode escape (`\uXXXX`).
 Unicode escape sequences always use 4-6 hexadecimal digits, and must represent a valid Unicode codepoint.
 
-```nymph
+```hoopoe
 'a' // regular character
 '\n' // newline
 '\t' // tab
@@ -97,7 +97,7 @@ They are UTF-8 encoded, and may include unescaped newlines.
 > On the flip side, string literals must escape double quotes `"\""`, and may include escaped
 > interpolated expressions `\${`.
 
-```nymph
+```hoopoe
 "Hello, world!" // regular string
 "Hello, \"world!\"" // escaped double quotes
 "Hello,
@@ -123,11 +123,11 @@ which is used to indicate that a variable is intentionally unused and to suppres
 Any declaration or assignment to `_` effectively discards the value.
 
 > [!NOTE] Casing and Conventions
-> Nymph does not enforce any particular casing or naming convention for identifiers.
+> Hoopoe does not enforce any particular casing or naming convention for identifiers.
 > However, it is recommended to use `snake_case` for variables and functions,
 > and `PascalCase` for types, structs, enums, etc.
 
-```nymph
+```hoopoe
 myVariable
 _myVariable
 MY_VARIABLE
@@ -152,11 +152,11 @@ so long as the `Item` type of the iterator matches the list type.
 > [!NOTE] Array lists vs. Linked lists
 > There are 2 ways to make lists - either use an array and expand its capacity as needed,
 > or have each item in the list store a reference to the next item.
-> Nymph uses array-backed lists for its list literal, but [linked lists](./stdlib/collections-linked_list#LinkedList)
+> Hoopoe uses array-backed lists for its list literal, but [linked lists](./stdlib/collections-linked_list#LinkedList)
 > are also available as the opt-in `std/collections/linked_list` module. Its current
 > `LinkedList<T>` is only a bare data shape and does not yet provide collection operations.
 
-```nymph
+```hoopoe
 #["apple", "banana", "cherry"]
 #[a, b, ...c]
 #[]
@@ -184,7 +184,7 @@ Any number of tuple spreads may be interleaved with ordinary elements, including
 empty and nested tuples. Elements and spread source expressions are evaluated
 exactly once from left to right.
 
-```nymph
+```hoopoe
 #(1, true, 'a')
 #(
   1,
@@ -211,7 +211,7 @@ Iterating a map yields `#(key, value)` tuples in the same sequence returned by `
 Repeated iteration of an unchanged map instance preserves that sequence. The order is otherwise
 unspecified—including across separate map instances—and mutation may change it.
 
-```nymph
+```hoopoe
 #{"apple": 1, "banana": 2, "cherry": 3}
 #{}
 #{
@@ -250,7 +250,7 @@ stops them.
 
 See [Iteration](./iteration#ranges) for how ranges behave inside a `for` loop.
 
-```nymph
+```hoopoe
 1..10 // exclusive range
 1..=10 // inclusive range
 1.. // min-only exclusive range

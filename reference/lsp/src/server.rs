@@ -3,19 +3,19 @@ use crate::document::{self, Document};
 use crate::semantic_tokens::{SemanticToken, SemanticTokenizer, TokenType};
 use crate::symbols::symbol_kind_to_lsp_enum;
 use crate::workspace::Workspace;
-use nymph_compiler::ast;
+use hoopoe_compiler::ast;
 use std::sync::Arc;
 use tower_lsp::jsonrpc::Result as LspResult;
 use tower_lsp::lsp_types::{self, *};
 use tower_lsp::{Client, LanguageServer};
 
-pub struct NymphLanguageServer {
+pub struct HoopoeLanguageServer {
 	client: Client,
 	workspace: Arc<Workspace>,
 	analyzer: SemanticAnalyzer,
 }
 
-impl NymphLanguageServer {
+impl HoopoeLanguageServer {
 	pub fn new(client: Client) -> Self {
 		Self {
 			client,
@@ -50,7 +50,7 @@ impl NymphLanguageServer {
 }
 
 #[tower_lsp::async_trait]
-impl LanguageServer for NymphLanguageServer {
+impl LanguageServer for HoopoeLanguageServer {
 	async fn initialize(&self, _: InitializeParams) -> LspResult<InitializeResult> {
 		let capabilities = ServerCapabilities {
 			text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
@@ -110,7 +110,7 @@ impl LanguageServer for NymphLanguageServer {
 		Ok(InitializeResult {
 			capabilities,
 			server_info: Some(ServerInfo {
-				name: "Nymph Language Server".to_string(),
+				name: "Hoopoe Language Server".to_string(),
 				version: Some(env!("CARGO_PKG_VERSION").to_string()),
 			}),
 		})
@@ -119,7 +119,7 @@ impl LanguageServer for NymphLanguageServer {
 	async fn initialized(&self, _: InitializedParams) {
 		self
 			.client
-			.log_message(MessageType::INFO, "Nymph Language Server initialized")
+			.log_message(MessageType::INFO, "Hoopoe Language Server initialized")
 			.await;
 	}
 
@@ -213,7 +213,7 @@ impl LanguageServer for NymphLanguageServer {
 					doc,
 				) {
 					let type_info = symbol.type_info.unwrap_or_else(|| symbol.name.clone());
-					let contents = format!("```nymph\n{type_info}\n```");
+					let contents = format!("```hoopoe\n{type_info}\n```");
 					let start = doc.position_to_offset(
 						symbol.range.start_line,
 						symbol.range.start_char.saturating_sub(1),
@@ -589,7 +589,7 @@ impl LanguageServer for NymphLanguageServer {
 	}
 }
 
-impl NymphLanguageServer {
+impl HoopoeLanguageServer {
 	fn encode_semantic_tokens(&self, tokens: &[SemanticToken]) -> SemanticTokensResult {
 		let mut data: Vec<lsp_types::SemanticToken> = Vec::new();
 		let mut prev_line = 0;
@@ -699,7 +699,7 @@ fn declaration_to_document_symbol(
 	decl: &ast::declaration::Declaration,
 	doc: &document::Document,
 ) -> Option<DocumentSymbol> {
-	use nymph_compiler::ast::declaration::Declaration;
+	use hoopoe_compiler::ast::declaration::Declaration;
 
 	match decl {
 		Declaration::Let { meta, value, .. } => {
@@ -940,7 +940,7 @@ fn declaration_to_document_symbol(
 
 /// Get a displayable name for a Type
 fn type_to_display_name(ty: &ast::types::Type) -> String {
-	use nymph_compiler::ast::types::Type;
+	use hoopoe_compiler::ast::types::Type;
 
 	match ty {
 		Type::Int => "int".to_string(),
@@ -1005,7 +1005,7 @@ fn extract_struct_inner_members(
 	members: &[ast::Spanned<ast::declaration::StructInnerMember>],
 	doc: &document::Document,
 ) -> Vec<DocumentSymbol> {
-	use nymph_compiler::ast::declaration::StructInnerMember;
+	use hoopoe_compiler::ast::declaration::StructInnerMember;
 
 	let mut children = Vec::new();
 
@@ -1096,7 +1096,7 @@ fn impl_member_to_symbol(
 	member: &ast::declaration::ImplMember,
 	doc: &document::Document,
 ) -> Option<DocumentSymbol> {
-	use nymph_compiler::ast::declaration::ImplMember;
+	use hoopoe_compiler::ast::declaration::ImplMember;
 
 	match member {
 		ImplMember::Let { meta, value, .. } => {
@@ -1163,7 +1163,7 @@ fn extract_interface_members(
 	members: &[ast::Spanned<ast::declaration::InterfaceMember>],
 	doc: &document::Document,
 ) -> Vec<DocumentSymbol> {
-	use nymph_compiler::ast::declaration::InterfaceMember;
+	use hoopoe_compiler::ast::declaration::InterfaceMember;
 
 	let mut children = Vec::new();
 
@@ -1244,7 +1244,7 @@ fn interface_element_to_symbol(
 	elem: &ast::declaration::InterfaceElement,
 	doc: &document::Document,
 ) -> Option<DocumentSymbol> {
-	use nymph_compiler::ast::declaration::InterfaceElement;
+	use hoopoe_compiler::ast::declaration::InterfaceElement;
 
 	match elem {
 		InterfaceElement::Let { meta, value } => {
@@ -1361,10 +1361,10 @@ fn make_document_symbol(
 mod tests {
 	use super::*;
 	use crate::document::Document;
-	use nymph_compiler::ast::declaration::Declaration;
+	use hoopoe_compiler::ast::declaration::Declaration;
 
 	fn parse_document(source: &str) -> Document {
-		Document::new("file:///test.nym".to_string(), source.to_string())
+		Document::new("file:///test.hoo".to_string(), source.to_string())
 	}
 
 	fn position_le(left: Position, right: Position) -> bool {

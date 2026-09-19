@@ -1,8 +1,8 @@
-# Nymph examples
+# Hoopoe examples
 
-A gallery of small, idiomatic Nymph projects — the kind of thing you'd reach for
+A gallery of small, idiomatic Hoopoe projects — the kind of thing you'd reach for
 the language to build. They double as a north star for the language and standard
-library: they show the _surface we're aiming at_, written the way we want Nymph to
+library: they show the _surface we're aiming at_, written the way we want Hoopoe to
 read.
 
 Every checked-in example is a compiler-checked project. Programs use immutable
@@ -11,32 +11,32 @@ service-shaped example is deliberately bounded so smoke checks always terminate.
 
 ## Project layout
 
-Every example is a self-contained project: a `nymph.toml` manifest at the root and
-sources under `src/`, with `src/main.nym` as the entry module. Its `main()` function
+Every example is a self-contained project: a `hoopoe.toml` manifest at the root and
+sources under `src/`, with `src/main.hoo` as the entry module. Its `main()` function
 (no arguments, returning `void`) is the program's entry point.
 
 ```
 todo-cli/
-  nymph.toml        # name, version, dependencies
+  hoopoe.toml        # name, version, dependencies
   src/
-    main.nym        # func main(): void = { … }
+    main.hoo        # func main(): void = { … }
 ```
 
 Run one from its project directory with:
 
 ```sh
-nymph check           # selects build.entry from nymph.toml
-nymph build
-nymph run
+hoopoe check           # selects build.entry from hoopoe.toml
+hoopoe build
+hoopoe run
 ```
 
 You can also run an example from outside its directory by selecting its
 manifest exactly (the option may appear before or after the subcommand):
 
 ```sh
-nymph --manifest examples/hello-world/nymph.toml check
-nymph build --manifest examples/hello-world/nymph.toml
-nymph run --manifest examples/hello-world/nymph.toml
+hoopoe --manifest examples/hello-world/hoopoe.toml check
+hoopoe build --manifest examples/hello-world/hoopoe.toml
+hoopoe run --manifest examples/hello-world/hoopoe.toml
 ```
 
 ## The examples

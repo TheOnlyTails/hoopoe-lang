@@ -1,6 +1,6 @@
 # Iteration
 
-Nymph iteration is immutable. `for (pattern in source) { … }` is the traversal construct; general
+Hoopoe iteration is immutable. `for (pattern in source) { … }` is the traversal construct; general
 source `while` does not exist. Accumulate with iterator terminals such as `fold`, or use a
 [state loop](#state-loops) when several named values must advance together.
 
@@ -9,7 +9,7 @@ source `while` does not exist. Accumulate with iterator terminals such as `fold`
 `Iteration` is a nominal enum, not `Option` and not a `{ value, done }` host convention. An iterator
 is persistent: `next` returns either `Done` or an item together with the immutable successor.
 
-```nymph
+```hoopoe
 enum Iteration<Item, Next> {
   Done,
   Yield(item: Item, next: Next),
@@ -28,7 +28,7 @@ These declarations are illustrative grammar because the nominal interfaces are a
 use them without an import. `Iterable.iter()` is pure and called once; its returned iterator carries
 the latent effects of stepping.
 
-```nym
+```hoo
 struct Counter(next: int, end: int)
 
 impl Iterator<int> for Counter {
@@ -55,7 +55,7 @@ operation, not source-level sugar for another loop. The source expression and `i
 once. Every iteration calls `next()` once and saves the successor before entering the body, so
 `continue` resumes from that successor and every other departure performs no extra step.
 
-```nym
+```hoo
 func first_even(): Option<int> = for@values (value in 1..=6) {
   if (value % 2 == 0) { break@values value }
 }
@@ -75,7 +75,7 @@ callbacks execute sequentially in source order.
 
 A state loop carries one or more immutable bindings:
 
-```nym
+```hoo
 func sum_to(limit: int): int = loop@sum (
   let next = 1
   let total = 0
@@ -92,7 +92,7 @@ Fallthrough is equivalent to continuing without replacements.
 
 When a loop carries no bindings, omit the header entirely:
 
-```nym
+```hoo
 loop {
   continue
 }
@@ -105,7 +105,7 @@ State loops cannot exhaust, so `break value` has type `T`, not `Option<T>`. Labe
 and `continue@outer(name = value)`. Header `let use` declarations participate in normal managed
 resource cleanup when replaced or when the loop exits.
 
-```nym
+```hoo
 func swap_twice(): #(int, int) = loop@swap (
   let left = 1
   let right = 2

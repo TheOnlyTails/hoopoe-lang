@@ -6,7 +6,7 @@ all.
 
 ## Declaring an interface
 
-```nym
+```hoo
 interface Area {
   func area(): int
 }
@@ -15,7 +15,7 @@ interface Area {
 An interface method can carry a **default body**, in terms of the interface's other methods —
 implementors get it for free unless they override it:
 
-```nym
+```hoo
 interface Describable {
   func label(): int
   func doubled_label(): int = this.label() * 2
@@ -23,10 +23,10 @@ interface Describable {
 ```
 
 Overriding a default wins over it — an implementor's own body is always what actually runs, even
-when the interface method it's overriding is only ever *called* through the default of another
+when the interface method it's overriding is only ever _called_ through the default of another
 method:
 
-```nym
+```hoo
 interface MyComparable<Other> {
   func compare_to(other: Other): int
   func less_than(other: Other): boolean = this.compare_to(other) < 0
@@ -45,7 +45,7 @@ impl MyComparable<Other = Weird> for Weird {
 one in its **own** `impl` block — the super-interface relationship affects what a bound accepts,
 not how the methods are grouped at the impl site:
 
-```nym
+```hoo
 interface Named { func name(): string }
 interface Greeter: Named { func greet(): string }
 
@@ -63,7 +63,7 @@ impl Greeter for Robot {
 An interface can itself be generic, most commonly to parameterize the type on the other side of a
 method (an `Other` operand, an `Output`, an `Item`):
 
-```nymph
+```hoopoe
 interface Plus<Other, Output> {
   func plus(other: Other): Output
 }
@@ -80,7 +80,7 @@ this sample can't redeclare it here).
 `impl Type { … }` (or the equivalent nested form inside the `struct`/`enum` body) adds methods with
 no interface attached:
 
-```nym
+```hoo
 struct Square(side: int)
 impl Square {
   func doubled_side(): int = this.side * 2
@@ -92,7 +92,7 @@ impl Square {
 `impl Interface for Type { … }` satisfies `Interface` for `Type`. Every non-defaulted method (and
 any defaults you want to override) goes in the body:
 
-```nym
+```hoo
 interface Area { func area(): int }
 struct Square(side: int)
 impl Area for Square {
@@ -103,7 +103,7 @@ impl Area for Square {
 The same thing can be written nested inside the struct/enum body instead of as a separate top-level
 `impl`:
 
-```nym
+```hoo
 interface Area { func area(): int }
 struct Circle(radius: int) {
   impl Area {
@@ -118,7 +118,7 @@ struct Circle(radius: int) {
 impls (a **blanket impl**) and for implementing an interface for one specific instantiation of a
 generic type:
 
-```nym
+```hoo
 struct Slot<T>(value: T, occupied: boolean)
 impl<T> Slot<T> {
   func get(): T = this.value
@@ -126,7 +126,7 @@ impl<T> Slot<T> {
 }
 ```
 
-```nym
+```hoo
 interface Describe { func describe(): string }
 impl<T> Describe for T {
   func describe(): string = "a value"
@@ -147,7 +147,7 @@ argument evaluation order.
 at once. Inside the bounded scope, `T`'s interface methods are callable exactly as if `T` were a
 concrete type:
 
-```nym
+```hoo
 interface Area { func area(): int }
 interface Named { func name(): string }
 
@@ -165,7 +165,7 @@ parameter) is sugar for "accepts any type implementing this interface" — the p
 exactly like a bounded generic inside the body, and a concrete implementing type can be passed
 straight in from the call site:
 
-```nym
+```hoo
 interface Area { func area(): int }
 struct Square(side: int)
 impl Area for Square {
@@ -182,7 +182,7 @@ The same method name can be defined independently on unrelated types — inheren
 different interfaces on others — and each call resolves against its own receiver's type with no
 ambiguity between them:
 
-```nym
+```hoo
 interface Scored { func score(): int }
 
 struct Player(points: int)

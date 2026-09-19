@@ -1,0 +1,446 @@
+{
+	"name": "Hoopoe",
+	"scopeName": "source.hoopoe",
+	"fileTypes": ["hoo", "hoopoe"],
+	"patterns": [
+		{ "include": "#comments" },
+		{ "include": "#strings" },
+		{ "include": "#characters" },
+		{ "include": "#numbers" },
+		{ "include": "#metaprogramming" },
+		{ "include": "#anonymous-parameters" },
+		{ "include": "#async-syntax" },
+		{ "include": "#effects" },
+		{ "include": "#keywords" },
+		{ "include": "#label" },
+		{ "include": "#operators" },
+		{ "include": "#punctuation" },
+		{ "include": "#type-expressions" },
+		{ "include": "#struct-fields" },
+		{ "include": "#member-access" },
+		{ "include": "#collection-literals" },
+		{ "include": "#function-call" },
+		{ "include": "#index-access" }
+	],
+	"repository": {
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.line.documentation.hoopoe",
+					"match": "///.*$"
+				},
+				{
+					"name": "comment.line.double-slash.hoopoe",
+					"match": "//.*$"
+				},
+				{
+					"name": "comment.block.hoopoe",
+					"begin": "/\\*",
+					"end": "\\*/"
+				}
+			]
+		},
+		"escapes": {
+			"name": "constant.character.escape.hoopoe",
+			"match": "\\\\(u\\{[0-9A-Fa-f]+\\}|[nrt0\\\\\"'])"
+		},
+		"strings": {
+			"name": "string.quoted.double.hoopoe",
+			"begin": "\"",
+			"beginCaptures": { "0": { "name": "punctuation.definition.string.begin.hoopoe" } },
+			"end": "\"",
+			"endCaptures": { "0": { "name": "punctuation.definition.string.end.hoopoe" } },
+			"patterns": [
+				{ "include": "#escapes" },
+				{
+					"name": "meta.interpolation.hoopoe",
+					"begin": "(?<!\\\\)\\$\\{",
+					"beginCaptures": {
+						"0": { "name": "punctuation.definition.template-expression.begin.hoopoe" }
+					},
+					"end": "\\}",
+					"endCaptures": {
+						"0": { "name": "punctuation.definition.template-expression.end.hoopoe" }
+					},
+					"contentName": "meta.embedded.line.hoopoe",
+					"patterns": [{ "include": "#expression" }]
+				}
+			]
+		},
+		"characters": {
+			"name": "string.quoted.single.hoopoe",
+			"begin": "'",
+			"beginCaptures": { "0": { "name": "punctuation.definition.string.begin.hoopoe" } },
+			"end": "'",
+			"endCaptures": { "0": { "name": "punctuation.definition.string.end.hoopoe" } },
+			"patterns": [{ "include": "#escapes" }]
+		},
+		"numbers": {
+			"patterns": [
+				{
+					"name": "constant.numeric.hex.hoopoe",
+					"match": "\\b0[xX][0-9a-fA-F](_?[0-9a-fA-F])*[uU]?\\b"
+				},
+				{
+					"name": "constant.numeric.octal.hoopoe",
+					"match": "\\b0[oO][0-7](_?[0-7])*[uU]?\\b"
+				},
+				{
+					"name": "constant.numeric.binary.hoopoe",
+					"match": "\\b0[bB][01](_?[01])*[uU]?\\b"
+				},
+				{
+					"name": "constant.numeric.float.hoopoe",
+					"match": "\\b\\d(_?\\d)*(\\.\\d(_?\\d)*([eE][-+]?\\d(_?\\d)*)?|[eE][-+]?\\d(_?\\d)*|[fF])"
+				},
+				{
+					"name": "constant.numeric.decimal.hoopoe",
+					"match": "\\b\\d(_?\\d)*[uU]?\\b"
+				}
+			]
+		},
+		"anonymous-parameters": {
+			"name": "variable.language.anonymous-parameter.hoopoe",
+			"match": "\\$\\d*(?!\\{)"
+		},
+		"metaprogramming": {
+			"patterns": [
+				{
+					"name": "punctuation.definition.tokens.begin.hoopoe",
+					"match": "\\\\(?=\\()"
+				},
+				{
+					"name": "keyword.operator.expansion.hoopoe",
+					"match": "\\$(?=\\()"
+				},
+				{
+					"name": "keyword.operator.expansion.hoopoe",
+					"match": "\\$(?=[_\\p{L}][_\\p{L}\\p{N}]*\\()"
+				},
+				{
+					"name": "keyword.operator.attached-macro.hoopoe",
+					"match": "\\$(?=\\[)"
+				}
+			]
+		},
+		"async-syntax": {
+			"patterns": [
+				{
+					"match": "\\b(async)\\s+(func)\\b",
+					"captures": {
+						"1": { "name": "storage.modifier.async.hoopoe" },
+						"2": { "name": "storage.type.function.hoopoe" }
+					}
+				},
+				{
+					"name": "keyword.control.async.hoopoe",
+					"match": "\\basync\\b(?=\\s*\\{)"
+				},
+				{
+					"match": "(\\.)\\s*(await)\\b",
+					"captures": {
+						"1": { "name": "punctuation.accessor.hoopoe" },
+						"2": { "name": "keyword.operator.await.hoopoe" }
+					}
+				}
+			]
+		},
+		"effects": {
+			"patterns": [
+				{
+					"match": "\\b(effect)\\s+([\\p{XID_Start}_][\\p{XID_Continue}]*)",
+					"captures": {
+						"1": { "name": "storage.type.effect.hoopoe" },
+						"2": { "name": "entity.name.type.effect.hoopoe" }
+					}
+				},
+				{
+					"match": "(!)(\\(\\))",
+					"captures": {
+						"1": { "name": "keyword.operator.effect.hoopoe" },
+						"2": { "name": "constant.language.effect.pure.hoopoe" }
+					}
+				},
+				{
+					"match": "(!)([\\p{XID_Start}_][\\p{XID_Continue}]*|_)",
+					"captures": {
+						"1": { "name": "keyword.operator.effect.hoopoe" },
+						"2": { "name": "entity.name.type.effect.hoopoe" }
+					}
+				}
+			]
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"match": "\\b(let)\\s+(use)\\b",
+					"captures": {
+						"1": { "name": "storage.type.hoopoe" },
+						"2": { "name": "storage.modifier.use.hoopoe" }
+					}
+				},
+				{
+					"name": "keyword.control.hoopoe",
+					"match": "\\b(if|else|for|loop|match|break|continue|echo)\\b"
+				},
+				{
+					"name": "keyword.control.import.hoopoe",
+					"match": "\\b(import|with)\\b"
+				},
+				{
+					"name": "storage.type.function.hoopoe",
+					"match": "\\b(func)\\b"
+				},
+				{
+					"name": "storage.type.hoopoe",
+					"match": "\\b(let|struct|enum|effect|interface|impl|namespace|type)\\b"
+				},
+				{
+					"name": "storage.modifier.hoopoe",
+					"match": "\\b(public|internal|private|external|const)\\b"
+				},
+				{
+					"name": "keyword.operator.word.hoopoe",
+					"match": "\\b(as|is|in)\\b"
+				},
+				{
+					"name": "entity.name.type.builtin.hoopoe",
+					"match": "\\b(int|uint|float|boolean|char|string|void|never|self)\\b"
+				},
+				{
+					"name": "constant.language.boolean.hoopoe",
+					"match": "\\b(true|false)\\b"
+				},
+				{
+					"name": "variable.language.this.hoopoe",
+					"match": "\\bthis\\b"
+				},
+				{
+					"match": "\\b([A-Z][\\p{XID_Continue}]*)\\s*(\\.)\\s*([A-Z][\\p{XID_Continue}]*)\\b",
+					"captures": {
+						"1": { "name": "entity.name.type.hoopoe" },
+						"2": { "name": "punctuation.accessor.hoopoe" },
+						"3": { "name": "entity.name.type.enum-variant.hoopoe" }
+					}
+				},
+				{
+					"match": "\\b([\\p{XID_Start}_][\\p{XID_Continue}]*)\\s*(?=\\()",
+					"name": "entity.name.function.hoopoe"
+				},
+				{
+					"name": "entity.name.type.hoopoe",
+					"match": "\\b[A-Z][\\p{XID_Continue}]*\\b"
+				},
+				{
+					"name": "variable.other.hoopoe",
+					"match": "\\b[\\p{XID_Start}_][\\p{XID_Continue}]*\\b"
+				}
+			]
+		},
+		"label": {
+			"match": "([\\p{XID_Start}_][\\p{XID_Continue}]*)\\s*(@)(?![/\\p{XID_Continue}])",
+			"captures": {
+				"1": { "name": "entity.name.label.hoopoe" },
+				"2": { "name": "punctuation.separator.label.hoopoe" }
+			}
+		},
+		"operators": {
+			"patterns": [
+				{
+					"name": "keyword.operator.spread.hoopoe",
+					"match": "\\.\\.\\."
+				},
+				{
+					"name": "keyword.operator.range.hoopoe",
+					"match": "\\.\\.=|\\.\\."
+				},
+				{
+					"name": "keyword.operator.arrow.hoopoe",
+					"match": "->"
+				},
+				{
+					"name": "keyword.operator.pipe.hoopoe",
+					"match": "\\|>"
+				},
+				{
+					"name": "keyword.operator.comparison.hoopoe",
+					"match": "==|!=|<=|>=|!is|!in"
+				},
+				{
+					"name": "keyword.operator.logical.hoopoe",
+					"match": "&&|\\|\\||!|\\?\\?"
+				},
+				{
+					"name": "keyword.operator.optional-chaining.hoopoe",
+					"match": "\\?\\.|\\?"
+				},
+				{
+					"name": "keyword.operator.arithmetic.hoopoe",
+					"match": "\\*\\*|\\+|-|\\*|/|%"
+				},
+				{
+					"name": "keyword.operator.bitwise.hoopoe",
+					"match": "<<|>>|&|\\||\\^|~"
+				},
+				{
+					"name": "keyword.operator.relational.hoopoe",
+					"match": "<|>"
+				},
+				{
+					"name": "keyword.operator.assignment.hoopoe",
+					"match": "="
+				}
+			]
+		},
+		"punctuation": {
+			"patterns": [
+				{
+					"name": "punctuation.definition.collection.hoopoe",
+					"match": "#\\[|#\\{|#\\("
+				},
+				{
+					"name": "punctuation.accessor.hoopoe",
+					"match": "\\?\\.|::|\\."
+				},
+				{
+					"name": "punctuation.separator.hoopoe",
+					"match": "[,:]"
+				},
+				{
+					"name": "keyword.operator.import-root.hoopoe",
+					"match": "@"
+				},
+				{
+					"name": "punctuation.section.brackets.hoopoe",
+					"match": "[()\\[\\]{}]"
+				}
+			]
+		},
+		"type-expressions": {
+			"patterns": [
+				{
+					"match": "\\b(int|uint|float|boolean|char|string|void|never|self)\\b",
+					"name": "entity.name.type.builtin.hoopoe"
+				},
+				{
+					"begin": "\\b([A-Z][\\p{XID_Continue}]*)\\s*(<)",
+					"beginCaptures": {
+						"1": { "name": "entity.name.type.hoopoe" },
+						"2": { "name": "punctuation.definition.generic.begin.hoopoe" }
+					},
+					"end": ">",
+					"endCaptures": { "0": { "name": "punctuation.definition.generic.end.hoopoe" } },
+					"patterns": [{ "include": "#type-expressions" }]
+				},
+				{
+					"match": "\\b[A-Z][\\p{XID_Continue}]*\\b",
+					"name": "entity.name.type.hoopoe"
+				}
+			]
+		},
+		"struct-fields": {
+			"patterns": [
+				{
+					"name": "variable.other.property.hoopoe",
+					"match": "\\b[\\p{XID_Start}_][\\p{XID_Continue}]*\\b(?=\\s*=)"
+				},
+				{
+					"match": "\\b(public|internal|private)?\\s*([\\p{XID_Start}][\\p{XID_Continue}]*)\\s*(?=:)",
+					"captures": {
+						"1": { "name": "storage.modifier.hoopoe" },
+						"2": { "name": "variable.other.property.hoopoe" }
+					}
+				}
+			]
+		},
+		"member-access": {
+			"match": "(\\?\\.|\\.)\\s*([\\p{XID_Start}][\\p{XID_Continue}]*)",
+			"captures": {
+				"1": { "name": "punctuation.accessor.hoopoe" },
+				"2": { "name": "variable.other.member.hoopoe" }
+			}
+		},
+		"expression": {
+			"patterns": [
+				{ "include": "#comments" },
+				{ "include": "#strings" },
+				{ "include": "#characters" },
+				{ "include": "#numbers" },
+				{ "include": "#anonymous-parameters" },
+				{ "include": "#async-syntax" },
+				{ "include": "#effects" },
+				{ "include": "#keywords" },
+				{ "include": "#operators" },
+				{ "include": "#type-expressions" },
+				{ "include": "#member-access" },
+				{ "include": "#collection-literals" },
+				{ "include": "#function-call" },
+				{ "include": "#index-access" },
+				{ "include": "#punctuation" }
+			]
+		},
+		"collection-literals": {
+			"patterns": [
+				{
+					"name": "meta.list.hoopoe",
+					"begin": "#\\[",
+					"beginCaptures": { "0": { "name": "punctuation.definition.list.begin.hoopoe" } },
+					"end": "\\]",
+					"endCaptures": { "0": { "name": "punctuation.definition.list.end.hoopoe" } },
+					"patterns": [{ "include": "#expression" }]
+				},
+				{
+					"name": "meta.tuple.hoopoe",
+					"begin": "#\\(",
+					"beginCaptures": { "0": { "name": "punctuation.definition.tuple.begin.hoopoe" } },
+					"end": "\\)",
+					"endCaptures": { "0": { "name": "punctuation.definition.tuple.end.hoopoe" } },
+					"patterns": [{ "include": "#expression" }]
+				},
+				{
+					"name": "meta.map.hoopoe",
+					"begin": "#\\{",
+					"beginCaptures": { "0": { "name": "punctuation.definition.map.begin.hoopoe" } },
+					"end": "\\}",
+					"endCaptures": { "0": { "name": "punctuation.definition.map.end.hoopoe" } },
+					"patterns": [{ "include": "#expression" }]
+				}
+			]
+		},
+		"function-call": {
+			"patterns": [
+				{
+					"name": "meta.function-call.generic.hoopoe",
+					"begin": "([\\p{XID_Start}_][\\p{XID_Continue}]*)\\s*(?=<[^<>]*>\\s*\\()",
+					"beginCaptures": {
+						"1": { "name": "entity.name.function.hoopoe" }
+					},
+					"end": "(?=\\()",
+					"patterns": [{ "include": "#type-expressions" }]
+				},
+				{
+					"name": "meta.function-call.hoopoe",
+					"begin": "([\\p{XID_Start}_][\\p{XID_Continue}]*)\\s*(\\()",
+					"beginCaptures": {
+						"1": { "name": "entity.name.function.hoopoe" },
+						"2": { "name": "punctuation.section.parameters.begin.hoopoe" }
+					},
+					"end": "\\)",
+					"endCaptures": { "0": { "name": "punctuation.section.parameters.end.hoopoe" } },
+					"patterns": [{ "include": "#expression" }]
+				}
+			]
+		},
+		"index-access": {
+			"name": "meta.index-access.hoopoe",
+			"begin": "(\\?)?\\[",
+			"beginCaptures": {
+				"0": { "name": "punctuation.section.brackets.begin.hoopoe" },
+				"1": { "name": "keyword.operator.optional-chaining.hoopoe" }
+			},
+			"end": "\\]",
+			"endCaptures": { "0": { "name": "punctuation.section.brackets.end.hoopoe" } },
+			"patterns": [{ "include": "#expression" }]
+		}
+	}
+}

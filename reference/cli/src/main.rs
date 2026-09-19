@@ -8,11 +8,11 @@ use std::{
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use clap::{Args, Parser, Subcommand};
 use ecow::EcoString;
-use nymph_compiler::{
+use hoopoe_compiler::{
 	VERSION,
 	ast::{Spanned, declaration::Module},
 	config::load_compiler_project_config,
-	db::{Diagnostics, NymphDatabase, ProjectConfig, SourceFile, TypeErrors},
+	db::{Diagnostics, HoopoeDatabase, ProjectConfig, SourceFile, TypeErrors},
 	queries::{bundle_project, parse_file, transpile_standalone_file, typecheck_file},
 	transpiler::transpile,
 	types::{self, TypeChecker, type_error_to_report},
@@ -59,7 +59,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn repl() -> anyhow::Result<()> {
-	println!("Nymph v{VERSION}");
+	println!("Hoopoe v{VERSION}");
 	println!("type :help for more info");
 
 	let mut editor = Reedline::create();
@@ -78,7 +78,7 @@ fn repl() -> anyhow::Result<()> {
 				":c" | ":clear" => print!("\x1B[2J\x1B[1;1H"),
 
 				":h" | ":help" => println!(
-					"Nymph REPL
+					"Hoopoe REPL
 :quit, :exit => exit the REPL
 :clear => clear the screen
 :help => print this message"
@@ -124,7 +124,7 @@ fn resolve_repl_project_root(current_dir: &Path) -> ReplProjectRoot {
 	ReplProjectRoot::CurrentDir(normalize_path(current_dir.to_path_buf()))
 }
 
-fn repl_project_config(db: &NymphDatabase) -> anyhow::Result<ProjectConfig> {
+fn repl_project_config(db: &HoopoeDatabase) -> anyhow::Result<ProjectConfig> {
 	let output_dir = PathBuf::from(DEFAULT_OUTPUT_DIR);
 	let current_dir = env::current_dir()?;
 
@@ -150,7 +150,7 @@ fn build(args: BuildArgs) -> anyhow::Result<()> {
 }
 
 fn build_project(path: PathBuf, output: Option<PathBuf>) -> anyhow::Result<()> {
-	let db = NymphDatabase::default();
+	let db = HoopoeDatabase::default();
 	let project_root = path.canonicalize().unwrap_or(path);
 	let output_dir = output.unwrap_or_else(|| PathBuf::from(DEFAULT_OUTPUT_DIR));
 	let config = load_compiler_project_config(&db, project_root.clone(), output_dir)?;
@@ -173,7 +173,7 @@ fn build_project(path: PathBuf, output: Option<PathBuf>) -> anyhow::Result<()> {
 }
 
 fn build_file(path: PathBuf, output: Option<PathBuf>) -> anyhow::Result<()> {
-	let db = NymphDatabase::default();
+	let db = HoopoeDatabase::default();
 	let abs_path = path.canonicalize().unwrap_or(path);
 	let source = fs::read_to_string(&abs_path)?;
 	let file = SourceFile::new(&db, abs_path.to_string_lossy().to_string(), source.clone());
@@ -276,7 +276,7 @@ fn load_source(file_path: &EcoString, default: Option<(&EcoString, &str)>) -> St
 	fs::read_to_string(file_path.as_str()).unwrap_or_default()
 }
 
-fn project_output_dir(db: &NymphDatabase, config: ProjectConfig) -> PathBuf {
+fn project_output_dir(db: &HoopoeDatabase, config: ProjectConfig) -> PathBuf {
 	let output_dir = config.output_dir(db);
 	if output_dir.is_absolute() {
 		output_dir.clone()
@@ -303,7 +303,7 @@ fn run(
 	filename: &str,
 	source: &str,
 ) -> anyhow::Result<Option<(Spanned<Module>, types::Context, bool)>> {
-	let db = NymphDatabase::default();
+	let db = HoopoeDatabase::default();
 	let file = SourceFile::new(&db, filename.to_string(), source.to_string());
 	let config = if filename == "<stdin>" {
 		repl_project_config(&db)?
@@ -348,11 +348,11 @@ mod tests {
 
 	#[test]
 	fn resolve_repl_project_root_prefers_local_project() {
-		let project_root = unique_temp_dir("nymph-cli-repl-project");
+		let project_root = unique_temp_dir("hoopoe-cli-repl-project");
 		let nested_dir = project_root.join("src/repl");
 		fs::create_dir_all(&nested_dir).expect("nested project directory should be creatable");
 		fs::write(
-			project_root.join("nymph.toml"),
+			project_root.join("hoopoe.toml"),
 			"name = 'fixture'\nversion = '0.1.0'\n",
 		)
 		.expect("project config should be writable");
@@ -367,7 +367,7 @@ mod tests {
 
 	#[test]
 	fn resolve_repl_project_root_falls_back_to_bundled_stdlib() {
-		let temp_dir = unique_temp_dir("nymph-cli-repl-standalone");
+		let temp_dir = unique_temp_dir("hoopoe-cli-repl-standalone");
 		let bundled_stdlib = bundled_stdlib_root().expect("bundled stdlib should exist in the repo");
 
 		assert_eq!(

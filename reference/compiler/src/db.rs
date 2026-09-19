@@ -134,12 +134,12 @@ pub trait Db: salsa::Database {}
 
 #[salsa::db]
 #[derive(Default, Clone)]
-pub struct NymphDatabase {
+pub struct HoopoeDatabase {
 	storage: salsa::Storage<Self>,
 }
 
 #[salsa::db]
-impl salsa::Database for NymphDatabase {}
+impl salsa::Database for HoopoeDatabase {}
 
 #[salsa::db]
-impl Db for NymphDatabase {}
+impl Db for HoopoeDatabase {}

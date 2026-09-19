@@ -2,12 +2,12 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const targetSpec = {
-	"linux-x64": { rust: "x86_64-unknown-linux-gnu", binary: "nymph-lsp" },
-	"linux-arm64": { rust: "aarch64-unknown-linux-gnu", binary: "nymph-lsp" },
-	"win32-x64": { rust: "x86_64-pc-windows-gnu", binary: "nymph-lsp.exe" },
-	"win32-arm64": { rust: "aarch64-pc-windows-gnullvm", binary: "nymph-lsp.exe" },
-	"darwin-x64": { rust: "x86_64-apple-darwin", binary: "nymph-lsp" },
-	"darwin-arm64": { rust: "aarch64-apple-darwin", binary: "nymph-lsp" },
+	"linux-x64": { rust: "x86_64-unknown-linux-gnu", binary: "hoopoe-lsp" },
+	"linux-arm64": { rust: "aarch64-unknown-linux-gnu", binary: "hoopoe-lsp" },
+	"win32-x64": { rust: "x86_64-pc-windows-gnu", binary: "hoopoe-lsp.exe" },
+	"win32-arm64": { rust: "aarch64-pc-windows-gnullvm", binary: "hoopoe-lsp.exe" },
+	"darwin-x64": { rust: "x86_64-apple-darwin", binary: "hoopoe-lsp" },
+	"darwin-arm64": { rust: "aarch64-apple-darwin", binary: "hoopoe-lsp" },
 };
 
 function stageServer(target, source, extensionRoot = path.resolve(__dirname, "..")) {
@@ -25,8 +25,11 @@ function stageServer(target, source, extensionRoot = path.resolve(__dirname, "..
 if (require.main === module) {
 	const [target, explicitSource] = process.argv.slice(2);
 	const spec = targetSpec[target];
-	if (!spec) throw new Error(`Usage: stage-server.cjs <${Object.keys(targetSpec).join("|")}> [binary]`);
-	const source = explicitSource || path.resolve(__dirname, "..", "..", "target", spec.rust, "release", spec.binary);
+	if (!spec)
+		throw new Error(`Usage: stage-server.cjs <${Object.keys(targetSpec).join("|")}> [binary]`);
+	const source =
+		explicitSource ||
+		path.resolve(__dirname, "..", "..", "target", spec.rust, "release", spec.binary);
 	stageServer(target, source);
 }
 

@@ -4,19 +4,19 @@ use std::{
 	time::{SystemTime, UNIX_EPOCH},
 };
 
-use nymph_compiler::{
+use hoopoe_compiler::{
 	config::load_compiler_project_config,
-	db::{NymphDatabase, TypeErrors},
+	db::{HoopoeDatabase, TypeErrors},
 	queries::{bundle_project, load_source_file, transpile_standalone_file, typecheck_file},
 };
 
 #[test]
 fn bundle_project_emits_stdlib_structure() {
-	let db = NymphDatabase::default();
+	let db = HoopoeDatabase::default();
 	let stdlib_root = PathBuf::from("../stdlib")
 		.canonicalize()
 		.expect("stdlib directory not found");
-	let output_dir = unique_temp_dir("nymph-bundler-stdlib");
+	let output_dir = unique_temp_dir("hoopoe-bundler-stdlib");
 	let config = load_compiler_project_config(&db, stdlib_root.clone(), output_dir.clone())
 		.expect("expected stdlib config to load");
 
@@ -28,15 +28,15 @@ fn bundle_project_emits_stdlib_structure() {
 	);
 	assert!(
 		output_dir.join("option.js").exists(),
-		"expected bundled output for option.nym"
+		"expected bundled output for option.hoo"
 	);
 	assert!(
 		output_dir.join("math/mod.js").exists(),
-		"expected bundled output for math/mod.nym"
+		"expected bundled output for math/mod.hoo"
 	);
 	assert!(
 		output_dir.join("math/mod.external.ts").exists(),
-		"expected copied external companion for math/mod.nym"
+		"expected copied external companion for math/mod.hoo"
 	);
 
 	let linked_list = result
@@ -45,7 +45,7 @@ fn bundle_project_emits_stdlib_structure() {
 		.find(|module| {
 			module
 				.source_path
-				.ends_with(Path::new("collections/linked_list.nym"))
+				.ends_with(Path::new("collections/linked_list.hoo"))
 		})
 		.expect("expected linked_list module to be emitted");
 	assert!(
@@ -73,14 +73,14 @@ fn bundle_project_emits_stdlib_structure() {
 
 #[test]
 fn transpile_standalone_file_uses_source_path_js_output() {
-	let db = NymphDatabase::default();
+	let db = HoopoeDatabase::default();
 	let stdlib_root = PathBuf::from("../stdlib")
 		.canonicalize()
 		.expect("stdlib directory not found");
-	let source_path = stdlib_root.join("src/option.nym");
+	let source_path = stdlib_root.join("src/option.hoo");
 	let file = load_source_file(&db, source_path.to_string_lossy().to_string());
 	let config =
-		load_compiler_project_config(&db, stdlib_root, unique_temp_dir("nymph-standalone-config"))
+		load_compiler_project_config(&db, stdlib_root, unique_temp_dir("hoopoe-standalone-config"))
 			.expect("expected stdlib config to load");
 
 	let result = transpile_standalone_file(&db, file, config)
@@ -102,10 +102,10 @@ fn transpile_standalone_file_uses_source_path_js_output() {
 
 #[test]
 fn standalone_file_uses_core_prelude_without_manual_imports() {
-	let db = NymphDatabase::default();
-	let project_root = write_minimal_prelude_project("nymph-core-prelude-project", false);
-	let output_dir = unique_temp_dir("nymph-core-prelude-output");
-	let source_path = project_root.join("src/main.nym");
+	let db = HoopoeDatabase::default();
+	let project_root = write_minimal_prelude_project("hoopoe-core-prelude-project", false);
+	let output_dir = unique_temp_dir("hoopoe-core-prelude-output");
+	let source_path = project_root.join("src/main.hoo");
 	fs::write(
 		&source_path,
 		r#"type EqInt = Equals<int>
@@ -162,10 +162,10 @@ func wrap(value: Result<Option<int>, string>) -> value
 
 #[test]
 fn standalone_file_can_use_unqualified_prelude_enum_variants() {
-	let db = NymphDatabase::default();
-	let project_root = write_minimal_prelude_project("nymph-prelude-variants-project", false);
-	let output_dir = unique_temp_dir("nymph-prelude-variants-output");
-	let source_path = project_root.join("src/main.nym");
+	let db = HoopoeDatabase::default();
+	let project_root = write_minimal_prelude_project("hoopoe-prelude-variants-project", false);
+	let output_dir = unique_temp_dir("hoopoe-prelude-variants-output");
+	let source_path = project_root.join("src/main.hoo");
 	fs::write(&source_path, "let value = Some(true)\n").expect("test source should be writable");
 
 	let file = load_source_file(&db, source_path.to_string_lossy().to_string());
@@ -198,10 +198,10 @@ fn standalone_file_can_use_unqualified_prelude_enum_variants() {
 
 #[test]
 fn implicit_prelude_module_does_not_emit_recursive_prelude_imports() {
-	let db = NymphDatabase::default();
-	let project_root = write_minimal_prelude_project("nymph-prelude-module-project", false);
-	let output_dir = unique_temp_dir("nymph-prelude-module-output");
-	let source_path = project_root.join("src/ops/mod.nym");
+	let db = HoopoeDatabase::default();
+	let project_root = write_minimal_prelude_project("hoopoe-prelude-module-project", false);
+	let output_dir = unique_temp_dir("hoopoe-prelude-module-output");
+	let source_path = project_root.join("src/ops/mod.hoo");
 	let file = load_source_file(&db, source_path.to_string_lossy().to_string());
 	let config = load_compiler_project_config(&db, project_root.clone(), output_dir.clone())
 		.expect("expected fixture config to load");
@@ -228,10 +228,10 @@ fn implicit_prelude_module_does_not_emit_recursive_prelude_imports() {
 
 #[test]
 fn standalone_file_can_disable_implicit_prelude_via_config() {
-	let db = NymphDatabase::default();
-	let project_root = write_minimal_prelude_project("nymph-disabled-prelude-project", true);
-	let output_dir = unique_temp_dir("nymph-disabled-prelude-output");
-	let source_path = project_root.join("src/main.nym");
+	let db = HoopoeDatabase::default();
+	let project_root = write_minimal_prelude_project("hoopoe-disabled-prelude-project", true);
+	let output_dir = unique_temp_dir("hoopoe-disabled-prelude-output");
+	let source_path = project_root.join("src/main.hoo");
 	fs::write(
 		&source_path,
 		r#"type EqInt = Equals<int>
@@ -263,10 +263,10 @@ func wrap(value: Result<Option<int>, string>) -> value
 
 #[test]
 fn standalone_file_still_requires_explicit_complex_import() {
-	let db = NymphDatabase::default();
-	let project_root = write_minimal_prelude_project("nymph-complex-import-project", false);
-	let output_dir = unique_temp_dir("nymph-complex-import-output");
-	let source_path = project_root.join("src/main.nym");
+	let db = HoopoeDatabase::default();
+	let project_root = write_minimal_prelude_project("hoopoe-complex-import-project", false);
+	let output_dir = unique_temp_dir("hoopoe-complex-import-output");
+	let source_path = project_root.join("src/main.hoo");
 	fs::write(
 		&source_path,
 		"func magnitude(value: Complex) -> value.abs()\n",
@@ -302,28 +302,28 @@ fn write_minimal_prelude_project(prefix: &str, disable_implicit_prelude: bool) -
 		""
 	};
 	fs::write(
-		project_root.join("nymph.toml"),
+		project_root.join("hoopoe.toml"),
 		format!("name = \"fixture\"\nversion = \"0.1.0\"\nlicense = \"MIT\"{build_section}"),
 	)
 	.expect("project config should be writable");
 	fs::create_dir_all(project_root.join("src/ops")).expect("ops directory should be creatable");
 	fs::write(
-		project_root.join("src/default.nym"),
+		project_root.join("src/default.hoo"),
 		"public interface Default {}\n",
 	)
 	.expect("default module should be writable");
 	fs::write(
-		project_root.join("src/option.nym"),
+		project_root.join("src/option.hoo"),
 		"public enum Option<T> {\n  Some(value: T),\n  None\n}\n",
 	)
 	.expect("option module should be writable");
 	fs::write(
-		project_root.join("src/result.nym"),
+		project_root.join("src/result.hoo"),
 		"public enum Result<T, E> {\n  Ok(value: T),\n  Error(error: E)\n}\n",
 	)
 	.expect("result module should be writable");
 	fs::write(
-		project_root.join("src/ops/mod.nym"),
+		project_root.join("src/ops/mod.hoo"),
 		"public interface Equals<Other> {}\n",
 	)
 	.expect("ops module should be writable");

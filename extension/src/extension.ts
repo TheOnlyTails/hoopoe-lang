@@ -12,7 +12,12 @@ let client: LanguageClient;
 export async function activate(context: ExtensionContext) {
 	let server: string;
 	try {
-		server = resolveServerPath({ platform: process.platform, arch: process.arch, override: workspace.getConfiguration("nymph").get<string>("server.path") || undefined, asAbsolutePath: context.asAbsolutePath.bind(context) });
+		server = resolveServerPath({
+			platform: process.platform,
+			arch: process.arch,
+			override: workspace.getConfiguration("hoopoe").get<string>("server.path") || undefined,
+			asAbsolutePath: context.asAbsolutePath.bind(context),
+		});
 	} catch (error) {
 		window.showErrorMessage(String(error));
 		return;
@@ -25,21 +30,21 @@ export async function activate(context: ExtensionContext) {
 
 	const clientOptions: LanguageClientOptions = {
 		documentSelector: [
-			{ scheme: "file", language: "nymph" },
-			{ scheme: "untitled", language: "nymph" },
+			{ scheme: "file", language: "hoopoe" },
+			{ scheme: "untitled", language: "hoopoe" },
 		],
 		synchronize: {
-			configurationSection: "nymph",
+			configurationSection: "hoopoe",
 		},
 	};
 
-	client = new LanguageClient("nymph-lsp", "Nymph Language Server", serverOptions, clientOptions);
+	client = new LanguageClient("hoopoe-lsp", "Hoopoe Language Server", serverOptions, clientOptions);
 
 	try {
 		await client.start();
-		window.showInformationMessage("Nymph Language Server activated");
+		window.showInformationMessage("Hoopoe Language Server activated");
 	} catch (err) {
-		window.showErrorMessage(`Failed to start Nymph Language Server: ${String(err)}`);
+		window.showErrorMessage(`Failed to start Hoopoe Language Server: ${String(err)}`);
 	}
 }
 

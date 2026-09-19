@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use nymph_compiler::{
+use hoopoe_compiler::{
 	ast::{Span, Spanned, declaration::Module},
 	config::load_compiler_project_config,
-	db::{DiagnosticKind, Diagnostics, NymphDatabase, ProjectConfig, SourceFile},
+	db::{DiagnosticKind, Diagnostics, HoopoeDatabase, ProjectConfig, SourceFile},
 	queries::{parse_file, typecheck_file},
 	types::{Context, TypeChecker, error::TypeError},
 };
@@ -122,7 +122,7 @@ impl Document {
 	pub fn parse(&mut self) -> Result<(), String> {
 		let file_path = self.document_path();
 		let file = SourceFile::new(
-			&NymphDatabase::default(),
+			&HoopoeDatabase::default(),
 			file_path.to_string_lossy().to_string(),
 			self.content.clone(),
 		);
@@ -160,7 +160,7 @@ impl Document {
 		&self,
 		file_path: &Path,
 	) -> (Option<Spanned<Module>>, Vec<CompilerDiagnostic>) {
-		let db = NymphDatabase::default();
+		let db = HoopoeDatabase::default();
 		let file_path_str = file_path.to_string_lossy().to_string();
 		let file = SourceFile::new(&db, file_path_str.clone(), self.content.clone());
 		let parse_result = parse_file(&db, file);
@@ -194,7 +194,7 @@ impl Document {
 		(parse_result.module, diagnostics)
 	}
 
-	fn project_config(&self, db: &NymphDatabase, file_path: &Path) -> ProjectConfig {
+	fn project_config(&self, db: &HoopoeDatabase, file_path: &Path) -> ProjectConfig {
 		let project_root = TypeChecker::find_project_root(file_path).unwrap_or_else(|| {
 			file_path
 				.parent()
@@ -316,8 +316,8 @@ impl Document {
 
 fn diagnostic_source(kind: DiagnosticKind) -> String {
 	match kind {
-		DiagnosticKind::ParseError => "nymph-parse".to_string(),
-		DiagnosticKind::TypeError => "nymph-typecheck".to_string(),
+		DiagnosticKind::ParseError => "hoopoe-parse".to_string(),
+		DiagnosticKind::TypeError => "hoopoe-typecheck".to_string(),
 	}
 }
 
@@ -327,15 +327,15 @@ mod tests {
 
 	#[test]
 	fn test_document_creation() {
-		let doc = Document::new("file:///test.nym".to_string(), "let x = 5".to_string());
-		assert_eq!(doc.uri, "file:///test.nym");
+		let doc = Document::new("file:///test.hoo".to_string(), "let x = 5".to_string());
+		assert_eq!(doc.uri, "file:///test.hoo");
 		assert_eq!(doc.content, "let x = 5");
 	}
 
 	#[test]
 	fn test_position_to_line_col() {
 		let doc = Document::new(
-			"file:///test.nym".to_string(),
+			"file:///test.hoo".to_string(),
 			"let x = 5\nlet y = 10".to_string(),
 		);
 		let (line, col) = doc.position_to_line_col(0);
@@ -350,7 +350,7 @@ mod tests {
 	#[test]
 	fn test_lsp_position_conversion_uses_utf16_columns() {
 		let doc = Document::new(
-			"file:///test.nym".to_string(),
+			"file:///test.hoo".to_string(),
 			"let 😀 = 1\nlet z = 2".to_string(),
 		);
 
@@ -366,7 +366,7 @@ mod tests {
 	#[test]
 	fn test_apply_lsp_change_replaces_full_range() {
 		let mut doc = Document::new(
-			"file:///test.nym".to_string(),
+			"file:///test.hoo".to_string(),
 			"let x = 5\nlet y = 10".to_string(),
 		);
 
@@ -390,9 +390,9 @@ mod tests {
 
 	#[test]
 	fn test_parse_errors_are_structured_diagnostics() {
-		let doc = Document::new("file:///test.nym".to_string(), "let =".to_string());
+		let doc = Document::new("file:///test.hoo".to_string(), "let =".to_string());
 
 		assert!(!doc.diagnostics.is_empty(), "expected compiler diagnostics");
-		assert_eq!(doc.diagnostics[0].source, "nymph-parse");
+		assert_eq!(doc.diagnostics[0].source, "hoopoe-parse");
 	}
 }

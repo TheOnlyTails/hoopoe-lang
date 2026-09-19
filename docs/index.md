@@ -3,7 +3,7 @@
 layout: home
 
 hero:
-  name: "Nymph"
+  name: "Hoopoe"
   text: "Programming Language"
   tagline: "A simple language that gets out of your way."
   actions:
@@ -26,7 +26,7 @@ modules are opt-in through `std/...`; project modules use source-rooted `@/...` 
 
 ::: code-group
 
-```nym [hello_world.nym]
+```hoo [hello_world.hoo]
 import std/io
 
 func main() = {
@@ -34,21 +34,21 @@ func main() = {
 }
 ```
 
-```nym [functions.nym]
+```hoo [functions.hoo]
 func factorial(n: int): int = match (n) {
   ..=1 -> 1,
   _ -> n * factorial(n - 1),
 }
 ```
 
-```nym [types.nym]
+```hoo [types.hoo]
 enum BinaryTree<T> {
   Leaf(value: T),
   Node(left: BinaryTree<T>, right: BinaryTree<T>),
 }
 ```
 
-```nym [lists.nym]
+```hoo [lists.hoo]
 func odd_squares(nums: #[int]): #[int] = nums
   .iter()
   .filter((value: int) -> value % 2 == 1)

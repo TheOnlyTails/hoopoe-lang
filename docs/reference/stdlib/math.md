@@ -10,9 +10,9 @@ out-of-domain and overflow cases.
 `float` provides the trigonometric methods `sin`, `cos`, `tan`, `asin`, `acos`,
 and `atan`; the hyperbolic methods `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, and
 `atanh`; and `floor`, `ceil`, and `round`. `exp()` computes \(e^x\), while
-`ln()` computes the natural logarithm. `log(base)` is defined in Nymph as:
+`ln()` computes the natural logarithm. `log(base)` is defined in Hoopoe as:
 
-```nymph
+```hoopoe
 func log(base: float): float = this.ln() / base.ln()
 ```
 
@@ -20,7 +20,7 @@ func log(base: float): float = this.ln() / base.ln()
 order. Integer trigonometric and hyperbolic convenience methods convert their
 receiver to `float` and return a `float`.
 
-The host implementations receive canonical boxed Nymph values and return
+The host implementations receive canonical boxed Hoopoe values and return
 canonical `float` or `int` boxes. Raw JavaScript numbers exist only while a
 host math primitive is being called; source operands are evaluated once in
 source order.

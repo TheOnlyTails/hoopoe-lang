@@ -9,19 +9,19 @@ mod tests {
 
 	#[test]
 	fn test_document_parsing() {
-		use nymph_lsp::document::Document;
+		use hoopoe_lsp::document::Document;
 
-		let doc = Document::new("file:///test.nym".to_string(), "let x = 5".to_string());
+		let doc = Document::new("file:///test.hoo".to_string(), "let x = 5".to_string());
 
-		assert_eq!(doc.uri, "file:///test.nym");
+		assert_eq!(doc.uri, "file:///test.hoo");
 		assert_eq!(doc.content, "let x = 5");
 	}
 
 	#[test]
 	fn test_document_update() {
-		use nymph_lsp::document::Document;
+		use hoopoe_lsp::document::Document;
 
-		let mut doc = Document::new("file:///test.nym".to_string(), "let x = 5".to_string());
+		let mut doc = Document::new("file:///test.hoo".to_string(), "let x = 5".to_string());
 
 		doc.update("let y = 10".to_string());
 		assert_eq!(doc.content, "let y = 10");
@@ -29,7 +29,7 @@ mod tests {
 
 	#[test]
 	fn test_semantic_tokenizer() {
-		use nymph_lsp::semantic_tokens::{SemanticTokenizer, TokenType};
+		use hoopoe_lsp::semantic_tokens::{SemanticTokenizer, TokenType};
 
 		let mut tokenizer = SemanticTokenizer::new();
 		let tokens = tokenizer.tokenize("let x = 5\nfunc foo() -> 1");
@@ -45,22 +45,22 @@ mod tests {
 
 	#[test]
 	fn test_workspace() {
-		use nymph_lsp::workspace::Workspace;
+		use hoopoe_lsp::workspace::Workspace;
 
 		smol::block_on(async {
 			let ws = Workspace::new();
-			ws.open_document("file:///test.nym".to_string(), "let x = 5".to_string())
+			ws.open_document("file:///test.hoo".to_string(), "let x = 5".to_string())
 				.await;
 
 			let count = ws.document_count().await;
 			assert_eq!(count, 1);
 
 			let content = ws
-				.get_document("file:///test.nym", |doc| doc.content.clone())
+				.get_document("file:///test.hoo", |doc| doc.content.clone())
 				.await;
 			assert_eq!(content, Some("let x = 5".to_string()));
 
-			ws.close_document("file:///test.nym").await;
+			ws.close_document("file:///test.hoo").await;
 			let count = ws.document_count().await;
 			assert_eq!(count, 0);
 		});

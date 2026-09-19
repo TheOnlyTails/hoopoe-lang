@@ -1,11 +1,11 @@
 use std::path::{Path, PathBuf};
 
-/// Given a `.nym` source file path, find the companion external module
+/// Given a `.hoo` source file path, find the companion external module
 /// (`.mjs`, `.cjs`, or `.ts`) that contains native JS implementations.
 ///
 /// Returns the first path that exists.
-pub fn find_external_module(nym_path: &Path) -> Option<PathBuf> {
-	let stem = nym_path.with_extension("");
+pub fn find_external_module(hoo_path: &Path) -> Option<PathBuf> {
+	let stem = hoo_path.with_extension("");
 	for ext in &["mts", "mjs", "cts", "cjs", "ts", "js"] {
 		let candidate = stem.with_extension(ext);
 		if candidate.exists() {

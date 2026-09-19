@@ -1,9 +1,9 @@
 # Types
 
-Types in Nymph are a way to describe the structure of a piece of data, allowing the programmer to
+Types in Hoopoe are a way to describe the structure of a piece of data, allowing the programmer to
 write code fast and correctly, passing work to the compiler.
 
-In general, types built into Nymph always begin with either a symbol or a lowercase letter,
+In general, types built into Hoopoe always begin with either a symbol or a lowercase letter,
 while user-defined types may be any valid identifier.
 However, as mentioned in the [Identifiers](./literals#Identifiers) section, types created by users
 should generally use `PascalCase`.

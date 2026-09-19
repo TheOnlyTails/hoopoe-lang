@@ -942,6 +942,186 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0b3ba31f6dc772cc8221ce81dbbbd64fa1e668255a6737d95eeace59b5a8823"
 
 [[package]]
+name = "hoopoe-ast"
+version = "0.1.0"
+dependencies = [
+ "ecow",
+ "ordered-float",
+ "salsa",
+ "strum",
+]
+
+[[package]]
+name = "hoopoe-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "hoopoe-compiler",
+ "hoopoe-diagnostics",
+ "hoopoe-format",
+ "hoopoe-project",
+ "rustix",
+ "serde_json",
+ "signal-hook",
+ "url",
+ "windows-sys",
+]
+
+[[package]]
+name = "hoopoe-codegen"
+version = "0.1.0"
+dependencies = [
+ "ecow",
+ "hoopoe-hir",
+ "oxc",
+]
+
+[[package]]
+name = "hoopoe-compiler"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "blake3",
+ "criterion",
+ "ecow",
+ "hoopoe-ast",
+ "hoopoe-codegen",
+ "hoopoe-diagnostics",
+ "hoopoe-format",
+ "hoopoe-hir",
+ "hoopoe-sema",
+ "hoopoe-syntax",
+ "oxc",
+ "rayon",
+ "rolldown",
+ "rustc-hash",
+ "salsa",
+ "serde",
+ "serde_json",
+ "swc_bundler",
+ "swc_common",
+ "swc_ecma_ast",
+ "swc_ecma_codegen",
+ "swc_ecma_loader",
+ "swc_ecma_parser",
+ "tokio",
+]
+
+[[package]]
+name = "hoopoe-diagnostics"
+version = "0.1.0"
+dependencies = [
+ "ariadne",
+ "ecow",
+ "hoopoe-ast",
+]
+
+[[package]]
+name = "hoopoe-errorcode"
+version = "0.1.0"
+dependencies = [
+ "hoopoe-diagnostics",
+ "quote",
+ "syn 3.0.0",
+]
+
+[[package]]
+name = "hoopoe-format"
+version = "0.1.0"
+dependencies = [
+ "hoopoe-ast",
+ "hoopoe-diagnostics",
+ "hoopoe-syntax",
+ "thiserror",
+ "unicode-ident",
+ "unicode-width",
+]
+
+[[package]]
+name = "hoopoe-hir"
+version = "0.1.0"
+dependencies = [
+ "ecow",
+ "rustc-hash",
+]
+
+[[package]]
+name = "hoopoe-lsp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "crossbeam-channel",
+ "hoopoe-ast",
+ "hoopoe-compiler",
+ "hoopoe-diagnostics",
+ "hoopoe-format",
+ "hoopoe-project",
+ "hoopoe-sema",
+ "hoopoe-syntax",
+ "lsp-server",
+ "lsp-types",
+ "percent-encoding",
+ "serde",
+ "serde_json",
+ "strsim",
+ "tempfile",
+]
+
+[[package]]
+name = "hoopoe-project"
+version = "0.1.0"
+dependencies = [
+ "hoopoe-compiler",
+ "semver",
+ "serde",
+ "tempfile",
+ "thiserror",
+ "toml",
+]
+
+[[package]]
+name = "hoopoe-sema"
+version = "0.1.0"
+dependencies = [
+ "ecow",
+ "ena",
+ "hoopoe-ast",
+ "hoopoe-diagnostics",
+ "hoopoe-errorcode",
+ "hoopoe-hir",
+ "hoopoe-syntax",
+ "num-bigint 0.4.8",
+ "ordered-float",
+ "rustc-hash",
+ "salsa",
+]
+
+[[package]]
+name = "hoopoe-syntax"
+version = "0.1.0"
+dependencies = [
+ "ecow",
+ "hoopoe-ast",
+ "hoopoe-diagnostics",
+ "hoopoe-errorcode",
+ "ordered-float",
+ "unicode-ident",
+]
+
+[[package]]
+name = "hoopoe-wasm"
+version = "0.1.0"
+dependencies = [
+ "hoopoe-compiler",
+ "hoopoe-diagnostics",
+ "hoopoe-syntax",
+ "serde",
+ "serde-wasm-bindgen",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "hstr"
 version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1359,186 +1539,6 @@ checksum = "91df4bbde75afed763b708b7eee1e8e7651e02d97f6d5dd763e89367e957b23b"
 dependencies = [
  "hermit-abi",
  "libc",
-]
-
-[[package]]
-name = "nymph-ast"
-version = "0.1.0"
-dependencies = [
- "ecow",
- "ordered-float",
- "salsa",
- "strum",
-]
-
-[[package]]
-name = "nymph-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "nymph-compiler",
- "nymph-diagnostics",
- "nymph-format",
- "nymph-project",
- "rustix",
- "serde_json",
- "signal-hook",
- "url",
- "windows-sys",
-]
-
-[[package]]
-name = "nymph-codegen"
-version = "0.1.0"
-dependencies = [
- "ecow",
- "nymph-hir",
- "oxc",
-]
-
-[[package]]
-name = "nymph-compiler"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "blake3",
- "criterion",
- "ecow",
- "nymph-ast",
- "nymph-codegen",
- "nymph-diagnostics",
- "nymph-format",
- "nymph-hir",
- "nymph-sema",
- "nymph-syntax",
- "oxc",
- "rayon",
- "rolldown",
- "rustc-hash",
- "salsa",
- "serde",
- "serde_json",
- "swc_bundler",
- "swc_common",
- "swc_ecma_ast",
- "swc_ecma_codegen",
- "swc_ecma_loader",
- "swc_ecma_parser",
- "tokio",
-]
-
-[[package]]
-name = "nymph-diagnostics"
-version = "0.1.0"
-dependencies = [
- "ariadne",
- "ecow",
- "nymph-ast",
-]
-
-[[package]]
-name = "nymph-errorcode"
-version = "0.1.0"
-dependencies = [
- "nymph-diagnostics",
- "quote",
- "syn 3.0.0",
-]
-
-[[package]]
-name = "nymph-format"
-version = "0.1.0"
-dependencies = [
- "nymph-ast",
- "nymph-diagnostics",
- "nymph-syntax",
- "thiserror",
- "unicode-ident",
- "unicode-width",
-]
-
-[[package]]
-name = "nymph-hir"
-version = "0.1.0"
-dependencies = [
- "ecow",
- "rustc-hash",
-]
-
-[[package]]
-name = "nymph-lsp"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "crossbeam-channel",
- "lsp-server",
- "lsp-types",
- "nymph-ast",
- "nymph-compiler",
- "nymph-diagnostics",
- "nymph-format",
- "nymph-project",
- "nymph-sema",
- "nymph-syntax",
- "percent-encoding",
- "serde",
- "serde_json",
- "strsim",
- "tempfile",
-]
-
-[[package]]
-name = "nymph-project"
-version = "0.1.0"
-dependencies = [
- "nymph-compiler",
- "semver",
- "serde",
- "tempfile",
- "thiserror",
- "toml",
-]
-
-[[package]]
-name = "nymph-sema"
-version = "0.1.0"
-dependencies = [
- "ecow",
- "ena",
- "num-bigint 0.4.8",
- "nymph-ast",
- "nymph-diagnostics",
- "nymph-errorcode",
- "nymph-hir",
- "nymph-syntax",
- "ordered-float",
- "rustc-hash",
- "salsa",
-]
-
-[[package]]
-name = "nymph-syntax"
-version = "0.1.0"
-dependencies = [
- "ecow",
- "nymph-ast",
- "nymph-diagnostics",
- "nymph-errorcode",
- "ordered-float",
- "unicode-ident",
-]
-
-[[package]]
-name = "nymph-wasm"
-version = "0.1.0"
-dependencies = [
- "nymph-compiler",
- "nymph-diagnostics",
- "nymph-syntax",
- "serde",
- "serde-wasm-bindgen",
- "wasm-bindgen",
 ]
 
 [[package]]

@@ -1,8 +1,8 @@
 # hello-world
 
-The smallest Nymph program: print a line and exit.
+The smallest Hoopoe program: print a line and exit.
 
-```nym
+```hoo
 import std/io with (println)
 
 func main(): void = {
@@ -16,6 +16,6 @@ calls. `println` comes from `std/io`; string arguments are printed as-is.
 **Status:** ✅ Runs today.
 
 ```sh
-nymph run
+hoopoe run
 # Hello, world!
 ```

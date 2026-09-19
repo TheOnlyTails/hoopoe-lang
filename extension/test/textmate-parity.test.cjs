@@ -5,22 +5,22 @@ const test = require("node:test");
 
 const extensionRoot = path.join(__dirname, "..");
 const grammar = JSON.parse(
-	fs.readFileSync(path.join(extensionRoot, "syntaxes", "nymph.tmLanguage.json"), "utf8"),
+	fs.readFileSync(path.join(extensionRoot, "syntaxes", "hoopoe.tmLanguage.json"), "utf8"),
 );
 const injection = JSON.parse(
-	fs.readFileSync(path.join(extensionRoot, "syntaxes", "nymph.codeblock.json"), "utf8"),
+	fs.readFileSync(path.join(extensionRoot, "syntaxes", "hoopoe.codeblock.json"), "utf8"),
 );
 const fixture = (name) => fs.readFileSync(path.join(__dirname, "fixtures", name), "utf8");
 const patternNamed = (repository, name) =>
 	repository.patterns.find((pattern) => pattern.name === name);
 
-void test("destination .nym fixture has TextMate fallbacks matching LSP token categories", () => {
-	const source = fixture("destination.nym");
-	const keyword = patternNamed(grammar.repository.keywords, "keyword.control.nymph");
-	const spread = patternNamed(grammar.repository.operators, "keyword.operator.spread.nymph");
-	const range = patternNamed(grammar.repository.operators, "keyword.operator.range.nymph");
-	const pipe = patternNamed(grammar.repository.operators, "keyword.operator.pipe.nymph");
-	const type = patternNamed(grammar.repository.keywords, "entity.name.type.nymph");
+void test("destination .hoo fixture has TextMate fallbacks matching LSP token categories", () => {
+	const source = fixture("destination.hoo");
+	const keyword = patternNamed(grammar.repository.keywords, "keyword.control.hoopoe");
+	const spread = patternNamed(grammar.repository.operators, "keyword.operator.spread.hoopoe");
+	const range = patternNamed(grammar.repository.operators, "keyword.operator.range.hoopoe");
+	const pipe = patternNamed(grammar.repository.operators, "keyword.operator.pipe.hoopoe");
+	const type = patternNamed(grammar.repository.keywords, "entity.name.type.hoopoe");
 	const property = grammar.repository["struct-fields"].patterns[0];
 	const member = grammar.repository["member-access"];
 
@@ -60,18 +60,18 @@ void test("metaprogramming forms have lexical scopes before anonymous parameters
 	assert.match("const", new RegExp(grammar.repository.keywords.patterns[5].match, "u"));
 });
 
-void test("Markdown injection embeds both nym and nymph fenced destination fixtures", () => {
+void test("Markdown injection embeds both hoo and hoopoe fenced destination fixtures", () => {
 	const markdown = fixture("destination.md");
-	const block = injection.repository["nymph-code-block"];
+	const block = injection.repository["hoopoe-code-block"];
 	const javascriptPattern = block.begin
 		.replace("(?i:", "(?:")
 		.replaceAll("\\G", "^")
 		.replaceAll("\\`", "`");
 	const begin = new RegExp(javascriptPattern, "iu");
-	assert.match("```nym", begin);
-	assert.match('~~~nymph title="destination"', begin);
-	assert.equal(block.patterns[0].contentName, "meta.embedded.block.nymph");
-	assert.equal(block.patterns[0].patterns[0].include, "source.nymph");
-	assert.match(markdown, /```nym[\s\S]*\n```/);
-	assert.match(markdown, /~~~nymph[\s\S]*\n~~~/);
+	assert.match("```hoo", begin);
+	assert.match('~~~hoopoe title="destination"', begin);
+	assert.equal(block.patterns[0].contentName, "meta.embedded.block.hoopoe");
+	assert.equal(block.patterns[0].patterns[0].include, "source.hoopoe");
+	assert.match(markdown, /```hoo[\s\S]*\n```/);
+	assert.match(markdown, /~~~hoopoe[\s\S]*\n~~~/);
 });

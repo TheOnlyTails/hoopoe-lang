@@ -2,11 +2,11 @@
 
 The interfaces behind [`for` loops](../iteration), including the fallible stepping contract used
 by canonical ranges. `Step`, `Iteration`, `Iterator`, `ExactSizeIterator`, and `Iterable` are part
-of Nymph's ambient core: use them directly, without an import.
+of Hoopoe's ambient core: use them directly, without an import.
 
 ## `Step`
 
-```nymph
+```hoopoe
 public interface Step: Comparable<Other = self> {
   func successor(): Option<self>
   func previous(): Option<self>
@@ -24,7 +24,7 @@ See [Ranges](../iteration#ranges) for endpoint and direction rules.
 
 ## `Iterator`
 
-```nymph
+```hoopoe
 public enum Iteration<Item, Next> {
   Done,
   Yield(item: Item, next: Next),
@@ -65,7 +65,7 @@ adapters preserve that capability only when they can prove an exact result.
 
 ## `Iterable`
 
-```nymph
+```hoopoe
 public interface Iterable<Item + !E> {
   func iter(): Iterator<Item + !E>
 }
@@ -75,7 +75,7 @@ A type that isn't itself an `Iterator` but can produce one — a collection, say
 state walking it — implements `Iterable<T>` instead. A `for` loop evaluates its source once and
 calls `.iter()` once before following the same persistent successor protocol.
 
-For maps, `Iterable<#(K, V)>.iter()` is ordinary Nymph and delegates to
+For maps, `Iterable<#(K, V)>.iter()` is ordinary Hoopoe and delegates to
 `this.entries().iter()`. It consequently has the same entry sequence as map `for` iteration. That
 sequence is stable when the same map instance is iterated repeatedly without mutation, but its
 order is otherwise unspecified, including across distinct instances.

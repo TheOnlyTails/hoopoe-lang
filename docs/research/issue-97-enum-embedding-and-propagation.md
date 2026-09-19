@@ -1,7 +1,7 @@
 # Issue 97: enum embedding and deep propagation
 
 This note records the decision evidence and compiler ownership for
-[issue #97](https://github.com/TheOnlyTails/nymph_lang/issues/97). It is planning material, not an
+[issue #97](https://github.com/TheOnlyTails/hoopoe_lang/issues/97). It is planning material, not an
 implementation.
 
 ## Decision

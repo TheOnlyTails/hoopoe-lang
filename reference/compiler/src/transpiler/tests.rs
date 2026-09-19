@@ -10,7 +10,7 @@ use crate::{
 		},
 		expr::{
 			CallArg, ClosureParam, Expr, ListItem, MapEntry, MatchArm, Pattern, RangeKind,
-			Statement as NymphStatement, StringEscape, StringPart,
+			Statement as HoopoeStatement, StringEscape, StringPart,
 		},
 		ops::{AssignOperator, BinaryOperator, PatternOperator, PrefixOperator},
 		types::Type,
@@ -77,7 +77,7 @@ fn test_string_literal() {
 	let code = emit_single_expr(Expr::String(vec![
 		StringPart::Text(EcoString::from("hello")).spanned(S),
 	]));
-	assert_eq!(code, "const x = __nymph_str('hello');\n");
+	assert_eq!(code, "const x = __hoopoe_str('hello');\n");
 }
 
 #[test]
@@ -138,7 +138,7 @@ fn test_func_no_params() {
 		},
 		body: Expr::String(vec![StringPart::Text(EcoString::from("hi")).spanned(S)]).spanned(S),
 	}]);
-	assert_eq!(code, "function greet() {\n\treturn __nymph_str('hi');\n}\n");
+	assert_eq!(code, "function greet() {\n\treturn __hoopoe_str('hi');\n}\n");
 }
 
 #[test]
@@ -228,7 +228,7 @@ fn test_map_literal() {
 		)
 		.spanned(S),
 	]));
-	assert_eq!(code, "const x = new Map([[__nymph_str('a'), 1]]);\n");
+	assert_eq!(code, "const x = new Map([[__hoopoe_str('a'), 1]]);\n");
 }
 
 // ───────────────── binary operators ─────────────────
@@ -512,7 +512,7 @@ fn test_struct_declaration() {
 fn test_block_with_statements() {
 	let code = emit_single_expr(Expr::Block {
 		body: vec![
-			NymphStatement::Let {
+			HoopoeStatement::Let {
 				meta: LetDeclaration {
 					mutable: false,
 					name: Pattern::Binding {
@@ -525,7 +525,7 @@ fn test_block_with_statements() {
 				value: Expr::Int(1u64.spanned(S)).spanned(S),
 			}
 			.spanned(S),
-			NymphStatement::Expr(Expr::Identifier(ident("a")).spanned(S)).spanned(S),
+			HoopoeStatement::Expr(Expr::Identifier(ident("a")).spanned(S)).spanned(S),
 		],
 		label: None,
 	});
@@ -912,7 +912,7 @@ fn test_map_multiple_entries() {
 #[test]
 fn test_empty_string() {
 	let code = emit_single_expr(Expr::String(vec![]));
-	assert_eq!(code, "const x = __nymph_str('');\n");
+	assert_eq!(code, "const x = __hoopoe_str('');\n");
 }
 
 #[test]
@@ -1197,7 +1197,7 @@ fn test_match_with_arms() {
 #[test]
 fn test_block_single_expression() {
 	let code = emit_single_expr(Expr::Block {
-		body: vec![NymphStatement::Expr(Expr::Int(42u64.spanned(S)).spanned(S)).spanned(S)],
+		body: vec![HoopoeStatement::Expr(Expr::Int(42u64.spanned(S)).spanned(S)).spanned(S)],
 		label: None,
 	});
 	assert!(code.contains("42"));
@@ -1207,9 +1207,9 @@ fn test_block_single_expression() {
 fn test_block_nested() {
 	let code = emit_single_expr(Expr::Block {
 		body: vec![
-			NymphStatement::Expr(
+			HoopoeStatement::Expr(
 				Expr::Block {
-					body: vec![NymphStatement::Expr(Expr::Int(1u64.spanned(S)).spanned(S)).spanned(S)],
+					body: vec![HoopoeStatement::Expr(Expr::Int(1u64.spanned(S)).spanned(S)).spanned(S)],
 					label: None,
 				}
 				.spanned(S),
@@ -1282,7 +1282,7 @@ fn test_func_with_block_body() {
 		},
 		body: Expr::Block {
 			body: vec![
-				NymphStatement::Let {
+				HoopoeStatement::Let {
 					meta: LetDeclaration {
 						mutable: false,
 						name: Pattern::Binding {
@@ -1300,7 +1300,7 @@ fn test_func_with_block_body() {
 					.spanned(S),
 				}
 				.spanned(S),
-				NymphStatement::Expr(Expr::Identifier(ident("result")).spanned(S)).spanned(S),
+				HoopoeStatement::Expr(Expr::Identifier(ident("result")).spanned(S)).spanned(S),
 			],
 			label: None,
 		}

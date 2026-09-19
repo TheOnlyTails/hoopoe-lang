@@ -1,7 +1,7 @@
 # Root result rendering and process exit policy
 
 This note records the resolution of
-[issue #92](https://github.com/TheOnlyTails/nymph_lang/issues/92). It is planning evidence for the
+[issue #92](https://github.com/TheOnlyTails/hoopoe_lang/issues/92). It is planning evidence for the
 language-identity roadmap, not an implementation of the destination runtime.
 
 ## Decision
@@ -56,8 +56,8 @@ This keeps the three outcome layers separate:
 In particular, generic task machinery does not treat `None` or application `Error` as cancellation or
 defect. A cleanup defect during cancellation settles as a defect with cancellation context, preserving
 the task-runtime policy from issues
-[#88](https://github.com/TheOnlyTails/nymph_lang/issues/88) and
-[#89](https://github.com/TheOnlyTails/nymph_lang/issues/89).
+[#88](https://github.com/TheOnlyTails/hoopoe_lang/issues/88) and
+[#89](https://github.com/TheOnlyTails/hoopoe_lang/issues/89).
 
 ## Cancellation and defects
 
@@ -66,10 +66,10 @@ children, and permits deterministic cleanup before exiting with the signal's con
 second termination signal may force immediate termination because an execution doing checkpoint-free
 CPU work is not guaranteed to observe cancellation.
 
-Defects use a runtime-owned renderer that invokes no Nymph `Display` or `Debug` implementation. Its
+Defects use a runtime-owned renderer that invokes no Hoopoe `Display` or `Debug` implementation. Its
 stable first line identifies a program defect; when available, subsequent diagnostics contain the
-logical Nymph activation backtrace, foreign-host cause, and suppressed cleanup defects. Promise and
-Node implementation frames are excluded from the ordinary Nymph trace. Raw V8 stack text may be
+logical Hoopoe activation backtrace, foreign-host cause, and suppressed cleanup defects. Promise and
+Node implementation frames are excluded from the ordinary Hoopoe trace. Raw V8 stack text may be
 included as marked supplemental detail but is not stable output. If defect normalization or rendering
 itself fails, the launcher emits the fallback `error: program defected\n` and still exits 101.
 
@@ -83,7 +83,7 @@ not depend on Node's version-specific uncaught-exception or unhandled-rejection 
   adapter without exposing Node process state as language semantics.
 - The task runtime produces values, cancellation, and defects and performs root joining and cleanup.
 - The Node launcher alone maps those outcomes to standard streams, signals, and process statuses.
-- Ordinary `nymph build` output remains an inert importable ES module. `nymph run` and future explicitly
+- Ordinary `hoopoe build` output remains an inert importable ES module. `hoopoe run` and future explicitly
   runnable Node artifacts own executable launch policy.
 
 The mapping is host policy rather than `Option`, `Result`, `Task`, or expected-error semantics. A later
@@ -92,10 +92,10 @@ browser adapter can consume the same runtime outcomes without inheriting Node pr
 ## Repository and Node evidence
 
 The current CLI compiles in entry mode, appends a bare `main();`, and returns the child Node status
-(`crates/nymph-cli/src/commands/run.rs`). It ignores a synchronous return value and does not drive a
+(`crates/hoopoe-cli/src/commands/run.rs`). It ignores a synchronous return value and does not drive a
 task. Current entry checking inspects only the surface return annotation and accepts only explicit
 `void`, with an unannotated inferred non-void value slipping through
-(`crates/nymph-sema/src/entry.rs`). The destination therefore requires semantic root-shape validation
+(`crates/hoopoe-sema/src/entry.rs`). The destination therefore requires semantic root-shape validation
 rather than extending that syntax-only check.
 
 Current `Display` dispatch uses a language protocol implementation with structural fallback, while
@@ -104,7 +104,7 @@ an expected application error while reserving the runtime-owned renderer for def
 
 Focused probes under Node 24.19.0 confirmed that a normal module exits 0, an uncaught throw exits 1,
 and bare or top-level-awaited rejected promises exit 1 with V8-owned stack output. Those defaults do
-not distinguish expected failure from a defect and do not provide a Nymph-stable diagnostic format.
+not distinguish expected failure from a defect and do not provide a Hoopoe-stable diagnostic format.
 
 ## Implementation verification frontier
 

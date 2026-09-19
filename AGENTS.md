@@ -1,7 +1,7 @@
 # Toolchain
 
 This document tells an agent (or a new human contributor) exactly which tools
-are needed to work in the Nymph compiler repo, how to install them, and which
+are needed to work in the Hoopoe compiler repo, how to install them, and which
 commands to run. Versions below reflect what is pinned in the repo and what CI
 uses — prefer the pinned versions over "latest".
 
@@ -12,7 +12,7 @@ The repo has **two independent toolchains**:
   (`docs/`) and the VS Code extension (`extension/`).
 
 They are separate, with one important overlap: **Node is also a runtime
-dependency of the Rust test suite**, because `nymph-codegen` emits JavaScript
+dependency of the Rust test suite**, because `hoopoe-codegen` emits JavaScript
 and runs it under `node` to verify the output. You cannot fully test the
 compiler without Node on `PATH`.
 
@@ -55,13 +55,13 @@ rustup component add rustfmt clippy rust-src --toolchain nightly
 
 ### Everyday commands
 
-| Task            | Command                                        |
-| --------------- | ---------------------------------------------- |
-| Build           | `cargo build`                                  |
-| Type-check only | `cargo check`                                  |
-| Format          | `cargo fmt`                                     |
-| Lint            | `cargo clippy --all-targets --all-features`    |
-| Docs            | `cargo doc --no-deps`                          |
+| Task            | Command                                     |
+| --------------- | ------------------------------------------- |
+| Build           | `cargo build`                               |
+| Type-check only | `cargo check`                               |
+| Format          | `cargo fmt`                                 |
+| Lint            | `cargo clippy --all-targets --all-features` |
+| Docs            | `cargo doc --no-deps`                       |
 
 **Formatting rules** are enforced by `rustfmt.toml` (hard tabs, 2-space width)
 and `clippy.toml` (`allow-mixed-uninlined-format-args = false`, i.e. inlined
@@ -88,11 +88,11 @@ downloads that skip a compile.)
 
 ### Commands
 
-| Task                       | Command                                              |
-| -------------------------- | ---------------------------------------------------- |
-| All tests                  | `cargo nextest run`                                  |
-| One package                | `cargo nextest run -p nymph-sema`                    |
-| Filter by name             | `cargo nextest run -E 'test(type_display)'`          |
+| Task           | Command                                     |
+| -------------- | ------------------------------------------- |
+| All tests      | `cargo nextest run`                         |
+| One package    | `cargo nextest run -p hoopoe-sema`          |
+| Filter by name | `cargo nextest run -E 'test(type_display)'` |
 
 > **Note:** nextest does not run doctests. If a crate has doctests, also run
 > `cargo test --doc`.
@@ -123,15 +123,15 @@ cargo binstall bacon        # or: cargo install bacon --locked
 
 ### Jobs (defined in `bacon.toml`)
 
-| Command             | What it runs                                              |
-| ------------------- | -------------------------------------------------------- |
-| `bacon`             | default job: `cargo check`                               |
-| `bacon check-all`   | `cargo check --all-targets`                              |
-| `bacon clippy-all`  | `cargo clippy --all-targets`                             |
-| `bacon test`        | `cargo test` (pass filters after `--`)                   |
-| `bacon nextest`     | `cargo nextest run` with nextest analyzer                |
-| `bacon doc-open`    | `cargo doc --no-deps --open`                             |
-| `bacon run`         | `cargo run`                                              |
+| Command            | What it runs                              |
+| ------------------ | ----------------------------------------- |
+| `bacon`            | default job: `cargo check`                |
+| `bacon check-all`  | `cargo check --all-targets`               |
+| `bacon clippy-all` | `cargo clippy --all-targets`              |
+| `bacon test`       | `cargo test` (pass filters after `--`)    |
+| `bacon nextest`    | `cargo nextest run` with nextest analyzer |
+| `bacon doc-open`   | `cargo doc --no-deps --open`              |
+| `bacon run`        | `cargo run`                               |
 
 Inside the TUI, `c` is bound to `clippy-all`.
 
@@ -187,21 +187,21 @@ pnpm install
 This repo uses the **oxc** toolchain for JS/TS rather than Prettier/ESLint.
 Root `package.json` scripts:
 
-| Task   | Command       | Underlying tool                        |
-| ------ | ------------- | -------------------------------------- |
-| Format | `pnpm format` | `oxfmt`                                |
-| Lint   | `pnpm lint`   | `oxlint --type-aware --type-check`     |
+| Task   | Command       | Underlying tool                    |
+| ------ | ------------- | ---------------------------------- |
+| Format | `pnpm format` | `oxfmt`                            |
+| Lint   | `pnpm lint`   | `oxlint --type-aware --type-check` |
 
 Per-package scripts:
 
 ```sh
 # Docs (VitePress)
-pnpm --filter nymph-docs dev        # local dev server
-pnpm --filter nymph-docs build
+pnpm --filter hoopoe-docs dev        # local dev server
+pnpm --filter hoopoe-docs build
 
 # VS Code extension
-pnpm --filter nymph compile         # tsc -p ./
-pnpm --filter nymph watch
+pnpm --filter hoopoe compile         # tsc -p ./
+pnpm --filter hoopoe watch
 ```
 
 ---
@@ -271,7 +271,7 @@ pnpm lint
 
 ### Issue tracker
 
-Issues and PRDs are tracked as GitHub issues (`gh` CLI) in `TheOnlyTails/nymph_lang`. See `docs/agents/issue-tracker.md`.
+Issues and PRDs are tracked as GitHub issues (`gh` CLI) in `TheOnlyTails/hoopoe_lang`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -293,9 +293,9 @@ in every commit message.
 
 ### Standard library ownership
 
-Prefer implementing standard-library behavior in Nymph whenever doing so is
+Prefer implementing standard-library behavior in Hoopoe whenever doing so is
 straightforward. Keep JavaScript externals for host/runtime primitives and
-other behavior that cannot reasonably be expressed in Nymph, so users can
+other behavior that cannot reasonably be expressed in Hoopoe, so users can
 inspect ordinary stdlib behavior without reading the external JavaScript.
 
 ### Completion summaries

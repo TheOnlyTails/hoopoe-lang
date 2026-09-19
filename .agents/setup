@@ -61,11 +61,11 @@ rustup toolchain install nightly \
 	--component clippy \
 	--component rust-src
 
-profile_marker="# Nymph Rust toolchain"
+profile_marker="# Hoopoe Rust toolchain"
 if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
 	cat >> "$HOME/.bash_profile" <<'EOF'
 
-# Nymph Rust toolchain
+# Hoopoe Rust toolchain
 export PATH="$HOME/.cargo/bin:$PATH"
 EOF
 fi

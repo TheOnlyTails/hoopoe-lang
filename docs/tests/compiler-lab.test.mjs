@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const componentUrl = new URL("../.vitepress/theme/components/NymphDebugger.vue", import.meta.url);
+const componentUrl = new URL("../.vitepress/theme/components/HoopoeDebugger.vue", import.meta.url);
 const component = await readFile(componentUrl, "utf8");
 
 await test("compiler lab exposes macro expansion and token highlighting", () => {
@@ -35,7 +35,7 @@ await test("DOM tabs use the exact user-facing labels and order", () => {
 		"Macro Expansion",
 		"JavaScript",
 	]);
-	assert.doesNotMatch(component, /Expanded Nymph/);
+	assert.doesNotMatch(component, /Expanded Hoopoe/);
 	assert.doesNotMatch(component, /Javascript/);
 });
 

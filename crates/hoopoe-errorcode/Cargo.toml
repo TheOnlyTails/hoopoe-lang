@@ -1,0 +1,17 @@
+[package]
+name = "hoopoe-errorcode"
+description = "A macro to generate stable error codes"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+hoopoe-diagnostics = { workspace = true }
+syn = "3.0.0"
+quote = "1.0.47"

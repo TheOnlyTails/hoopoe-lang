@@ -11,10 +11,10 @@ final-status-level = "slow"
 
 [profile.throughput.junit]
 path = "junit.xml"
-report-name = "nymph-throughput"
+report-name = "hoopoe-throughput"
 
 [[profile.throughput.overrides]]
-filter = "package(nymph-compiler) | package(nymph-cli) | package(nymph-lsp)"
+filter = "package(hoopoe-compiler) | package(hoopoe-cli) | package(hoopoe-lsp)"
 test-group = "compiler-heavy"
 
 [[profile.throughput.overrides]]

@@ -5,7 +5,7 @@ socket or leaving an unbounded process behind.
 
 The whole router is one `match`, keyed on the **method and path together**:
 
-```nym
+```hoo
 func route(method: Method, path: string): string = match (#(method, path)) {
   #(Method.Get, "/health") -> "200 ok",
   #(Method.Get, "/") -> "200 welcome",
@@ -20,7 +20,7 @@ What it shows:
 - **Handlers are plain functions** — the router is independently testable.
 
 ```sh
-nymph run
+hoopoe run
 # 200 ok
 # 404 not found
 ```

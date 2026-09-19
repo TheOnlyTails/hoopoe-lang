@@ -1,0 +1,29 @@
+[package]
+name = "hoopoe-sema"
+description = "Name resolution, type checking, and interface solving for the Hoopoe language."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+hoopoe-ast = { workspace = true }
+hoopoe-diagnostics = { workspace = true }
+hoopoe-errorcode = { workspace = true }
+hoopoe-hir = { workspace = true }
+hoopoe-syntax = { workspace = true }
+ecow = { workspace = true }
+ena = { workspace = true }
+num-bigint = { workspace = true }
+ordered-float = { workspace = true }
+rustc-hash = { workspace = true }
+salsa = { workspace = true }
+
+[dev-dependencies]
+ecow = { workspace = true }
+rustc-hash = { workspace = true }
+
+[lints.clippy]
+all = "warn"

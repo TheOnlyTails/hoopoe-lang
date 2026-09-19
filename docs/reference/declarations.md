@@ -1,6 +1,6 @@
 # Declarations
 
-A Nymph module is a flat list of declarations: bindings, functions, types, and the constructs that
+A Hoopoe module is a flat list of declarations: bindings, functions, types, and the constructs that
 attach behavior to them. This page is the map of what's declarable at the top level and how each
 form is written; see [Functions](./functions), [Structs and enums](./structs-and-enums), and
 [Interfaces and impls](./interfaces-and-impls) for the deeper treatment of each.
@@ -10,7 +10,7 @@ form is written; see [Functions](./functions), [Structs and enums](./structs-and
 A top-level `let` declares an immutable module-level binding, evaluated once. To represent an
 updated value, bind the replacement under a new name — see [Immutability](./mutability).
 
-```nym
+```hoo
 let limit = 100
 func under_limit(n: int): boolean = n < limit
 ```
@@ -19,16 +19,16 @@ func under_limit(n: int): boolean = n < limit
 
 An intrinsic may expose an immutable host value with `external let`. The
 optional marker names the linkage-registry entry; without one it defaults to
-the Nymph binding name.
+the Hoopoe binding name.
 
-```nymph
+```hoopoe
 public external let max_float: float
 public external(min_float) let minimum: float
 ```
 
 External lets differ from external functions: the generated module imports
 the host export once, marshals its raw value into the declared canonical boxed
-Nymph representation once, and stores that snapshot in one `const` binding.
+Hoopoe representation once, and stores that snapshot in one `const` binding.
 Every reference shares that binding and identity; the host export is not read
 or boxed again. Ambient external lets are emitted only when demanded,
 preserving single canonical type emission and
@@ -42,7 +42,7 @@ block — see [Blocks](./expressions#blocks).
 `func name(params): ReturnType = body` declares a function. The return type can be omitted and
 inferred from the body; the body is any [expression](./expressions), most often a block.
 
-```nym
+```hoo
 func add(a: int, b: int): int = a + b
 ```
 
@@ -52,7 +52,7 @@ One more keyword changes what a function member _is_, and it is only meaningful 
 - `namespace func` — a static, called on the type itself (`Type.name(...)`) rather than on an
   instance.
 
-```nym
+```hoo
 struct Counter(n: int) {
   func bumped(): Counter = Counter(n = this.n + 1)
   namespace func zero(): Counter = Counter(n = 0)
@@ -72,7 +72,7 @@ See [Functions](./functions) for parameters, generics, and closures in depth.
 A product type: a fixed set of named, typed fields, plus an optional body of methods and interface
 impls.
 
-```nym
+```hoo
 struct Point(x: int, y: int)
 
 struct Account(balance: int, overdraft: int) {
@@ -87,7 +87,7 @@ See [Structs and enums](./structs-and-enums) for fields, defaults, construction,
 A sum type: a fixed set of named variants, each optionally carrying its own fields, plus the same
 kind of method/impl body a struct can have.
 
-```nym
+```hoo
 enum Shape {
   Circle(radius: int),
   Square(side: int),
@@ -108,7 +108,7 @@ See [Structs and enums](./structs-and-enums) and [Pattern matching](./pattern-ma
 A named set of method (and `let`) signatures a type can promise to implement, optionally with
 default bodies and super-interfaces.
 
-```nym
+```hoo
 interface Area {
   func area(): int
 }
@@ -130,7 +130,7 @@ interfaces the stdlib ships as an always-available prelude — see [Operators](.
 Attaches methods to a type, either on its own (an **inherent** impl) or as the implementation of a
 specific interface (an **interface impl**, `impl … for …`).
 
-```nym
+```hoo
 interface Area { func area(): int }
 struct Square(side: int)
 
@@ -155,7 +155,7 @@ before or after the type declaration.
 An inherent or interface impl can also be written **nested inside** the `struct`/`enum` body
 itself, which is equivalent to a separate top-level `impl` block:
 
-```nym
+```hoo
 interface Area { func area(): int }
 struct Circle(radius: int) {
   impl Area {
@@ -174,7 +174,7 @@ there's no receiver and nesting another namespace would be pointless, only ordin
 `func`s and `let`s are accepted inside — a `namespace func` or `namespace let` here is
 rejected the same way it would be at the bare top level.
 
-```nym
+```hoo
 namespace MathUtils {
   func double(x: int): int = x * 2
 }
@@ -191,7 +191,7 @@ namespace MathUtils {
 `public`, `internal`, or `private` may prefix most top-level declarations, and a struct field
 individually:
 
-```nym
+```hoo
 public struct Point(public x: int, public y: int)
 
 internal func helper(): int = 1
@@ -209,14 +209,14 @@ unqualified: without a `with` list, all are selected; a `with` list limits the s
 selected name can be aliased. The namespace remains available alongside selected declarations
 unless a selected declaration occupies the same name.
 
-Nymph's **ambient core** is different: APIs such as `Option`, `Result`, `Iterator`, `Iterable`,
+Hoopoe's **ambient core** is different: APIs such as `Option`, `Result`, `Iterator`, `Iterable`,
 ranges, operators, and methods on built-in strings, lists, and maps are already in scope. Do not
 import them.
 
 Other standard-library modules are opt-in and use the `std/...` root. For example,
 `LinkedList` is not ambient:
 
-```nymph
+```hoopoe
 import std/collections/linked_list with (LinkedList)
 
 func retain<T>(list: LinkedList<T>): LinkedList<T> = list
@@ -227,28 +227,28 @@ containing the import. Given these files:
 
 ```text
 src/
-├── math.nym
-├── shared.nym
+├── math.hoo
+├── shared.hoo
 └── app/
-    ├── format.nym
-    └── main.nym
+    ├── format.hoo
+    └── main.hoo
 ```
 
-`src/app/main.nym` can use all three project forms:
+`src/app/main.hoo` can use all three project forms:
 
-```nym [src/math.nym]
+```hoo [src/math.hoo]
 public func double(x: int): int = x * 2
 ```
 
-```nym [src/app/format.nym]
+```hoo [src/app/format.hoo]
 public func increment(x: int): int = x + 1
 ```
 
-```nym [src/shared.nym]
+```hoo [src/shared.hoo]
 public func seed(): int = 20
 ```
 
-```nymph
+```hoopoe
 import @/math as root_math
 import ./format with (increment)
 import ../shared with (seed as seed_value)
@@ -259,7 +259,7 @@ func answer(): int = increment(root_math.double(seed_value()))
 - `@/...` starts at the source root, regardless of the importing file's directory.
 - `./...` starts in the importing file's directory; `../...` starts in its parent directory and
   cannot escape the source root.
-- Paths omit `.nym`: a canonical path such as `app/format` resolves exactly to
-  `src/app/format.nym`. There is no extension probing or `index.nym` fallback.
+- Paths omit `.hoo`: a canonical path such as `app/format` resolves exactly to
+  `src/app/format.hoo`. There is no extension probing or `index.hoo` fallback.
 - `std/...` is the only supported package root. Imports beginning with another package name are
   rejected; third-party dependency resolution is not implemented.

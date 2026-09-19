@@ -1,9 +1,9 @@
 import { defineConfig } from "vitepress";
-import grammar from "../../extension/syntaxes/nymph.tmLanguage.json" with { type: "json" };
+import grammar from "../../extension/syntaxes/hoopoe.tmLanguage.json" with { type: "json" };
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-	title: "Nymph",
+	title: "Hoopoe",
 	description: "A simple language that gets out of your way.",
 	cleanUrls: true,
 	lastUpdated: true,
@@ -20,22 +20,22 @@ export default defineConfig({
 		languages: [
 			{
 				...(grammar as any),
-				name: "nymph",
-				// `nym` is the fence tag the doc-sample test harness
-				// (crates/nymph-compiler/tests/docs_samples.rs) checks: every
-				// ```nym fence must compile cleanly, unless one of its lines
+				name: "hoopoe",
+				// `hoo` is the fence tag the doc-sample test harness
+				// (crates/hoopoe-compiler/tests/docs_samples.rs) checks: every
+				// ```hoo fence must compile cleanly, unless one of its lines
 				// carries a trailing `// [!code error]` comment, in which case
 				// the harness asserts compilation fails with a diagnostic on
 				// that line (VitePress renders the same comment as an inline
 				// error highlight). Fragments not meant to be checked use the
-				// grammar's own name, `nymph`, instead of `nym`, so the harness
+				// grammar's own name, `hoopoe`, instead of `hoo`, so the harness
 				// skips them while they still get syntax highlighting.
-				aliases: ["nym"],
+				aliases: ["hoo"],
 			},
 		],
 	},
 	sitemap: {
-		hostname: "https://nymphlang.dev",
+		hostname: "https://hoopoelang.dev",
 	},
 	themeConfig: {
 		// https://vitepress.dev/reference/default-theme-config
@@ -57,7 +57,7 @@ export default defineConfig({
 			{
 				text: "Tour",
 				base: "/tour",
-				items: [{ text: "A tour of Nymph", link: "/" }],
+				items: [{ text: "A tour of Hoopoe", link: "/" }],
 			},
 			{
 				text: "Reference",
@@ -93,6 +93,6 @@ export default defineConfig({
 			},
 		],
 
-		socialLinks: [{ icon: "github", link: "https://github.com/theonlytails/nymph_lang" }],
+		socialLinks: [{ icon: "github", link: "https://github.com/theonlytails/hoopoe_lang" }],
 	},
 });

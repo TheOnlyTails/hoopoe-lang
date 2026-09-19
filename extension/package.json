@@ -1,16 +1,16 @@
 {
-	"name": "nymph",
-	"displayName": "Nymph",
+	"name": "hoopoe",
+	"displayName": "Hoopoe",
 	"version": "0.0.1",
-	"description": "Support for the Nymph programming language",
+	"description": "Support for the Hoopoe programming language",
 	"categories": [
 		"Programming Languages"
 	],
-	"homepage": "https://nymphlang.dev/",
+	"homepage": "https://hoopoelang.dev/",
 	"license": "Apache-2.0",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/theonlytails/nymph_lang.git",
+		"url": "https://github.com/theonlytails/hoopoe_lang.git",
 		"directory": "extension"
 	},
 	"publisher": "theonlytails",
@@ -44,15 +44,15 @@
 	},
 	"contributes": {
 		"configuration": {
-			"title": "Nymph",
+			"title": "Hoopoe",
 			"properties": {
-				"nymph.server.path": {
+				"hoopoe.server.path": {
 					"type": "string",
 					"default": "",
 					"scope": "machine",
-					"description": "Development-only absolute path override for nymph-lsp. Published packages use their bundled server by default."
+					"description": "Development-only absolute path override for hoopoe-lsp. Published packages use their bundled server by default."
 				},
-				"nymph.buildProfile": {
+				"hoopoe.buildProfile": {
 					"type": "string",
 					"enum": [
 						"development",
@@ -66,37 +66,37 @@
 		},
 		"languages": [
 			{
-				"id": "nymph",
+				"id": "hoopoe",
 				"aliases": [
-					"Nymph",
-					"nymph"
+					"Hoopoe",
+					"hoopoe"
 				],
 				"extensions": [
-					".nym"
+					".hoo"
 				],
 				"configuration": "./language-configuration.json"
 			}
 		],
 		"snippets": [
 			{
-				"language": "nymph",
-				"path": "./snippets/nymph.json"
+				"language": "hoopoe",
+				"path": "./snippets/hoopoe.json"
 			}
 		],
 		"grammars": [
 			{
-				"language": "nymph",
-				"scopeName": "source.nymph",
-				"path": "./syntaxes/nymph.tmLanguage.json"
+				"language": "hoopoe",
+				"scopeName": "source.hoopoe",
+				"path": "./syntaxes/hoopoe.tmLanguage.json"
 			},
 			{
-				"scopeName": "markdown.nymph.codeblock",
-				"path": "./syntaxes/nymph.codeblock.json",
+				"scopeName": "markdown.hoopoe.codeblock",
+				"path": "./syntaxes/hoopoe.codeblock.json",
 				"injectTo": [
 					"text.html.markdown"
 				],
 				"embeddedLanguages": {
-					"meta.embedded.block.nymph": "nymph"
+					"meta.embedded.block.hoopoe": "hoopoe"
 				}
 			}
 		]

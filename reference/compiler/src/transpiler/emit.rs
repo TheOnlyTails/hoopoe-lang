@@ -14,7 +14,7 @@ use crate::{
 			StructInnerMember, Visibility,
 		},
 		expr::{
-			Expr, ListItem, MapEntry, MatchArm, Pattern, Statement as NymphStatement, StringEscape,
+			Expr, ListItem, MapEntry, MatchArm, Pattern, Statement as HoopoeStatement, StringEscape,
 			StringPart, anonymous_params, rewrite_anonymous_params,
 		},
 		ops::{AssignOperator, BinaryOperator, PatternOperator},
@@ -28,7 +28,7 @@ use crate::{
 
 /// Intermediate representation for expression-valued code.
 ///
-/// In Nymph, blocks / if / match are all expressions. When emitting to JS
+/// In Hoopoe, blocks / if / match are all expressions. When emitting to JS
 /// we may need to wrap them in an IIFE.  `JsValue` keeps the leading
 /// statements separate from the final expression so that we can optimise
 /// the common case (no statements ⟹ emit expression directly).
@@ -71,7 +71,7 @@ pub struct Emitter<'a> {
 	pub ast: AstBuilder<'a>,
 	pub ctx: &'a Context,
 	gensym: u64,
-	/// Path to the current `.nym` source file (for resolving externals).
+	/// Path to the current `.hoo` source file (for resolving externals).
 	source_path: Option<&'a Path>,
 }
 
@@ -249,10 +249,10 @@ impl<'a> Emitter<'a> {
 		self.ast.expression_object(SPAN, props)
 	}
 
-	fn nymph_string(&self, value: Expression<'a>) -> Expression<'a> {
+	fn hoopoe_string(&self, value: Expression<'a>) -> Expression<'a> {
 		let mut args = self.ast.vec();
 		args.push(Argument::from(value));
-		self.call(self.ident_ref("__nymph_str"), args)
+		self.call(self.ident_ref("__hoopoe_str"), args)
 	}
 
 	fn concat_expressions(&self, parts: Vec<Expression<'a>>) -> Expression<'a> {
@@ -297,7 +297,7 @@ impl<'a> Emitter<'a> {
 
 	// ───────────────── module-level emit ─────────────────
 
-	/// Emit an entire Nymph module as a list of JS statements.
+	/// Emit an entire Hoopoe module as a list of JS statements.
 	pub fn emit_module(&mut self, module: &'a Module) -> OxcVec<'a, Statement<'a>> {
 		let mut stmts = self.ast.vec();
 		for decl in &module.members {
@@ -1507,9 +1507,9 @@ impl<'a> Emitter<'a> {
 
 	// ───────────────── statement emit ─────────────────
 
-	pub fn emit_statement(&mut self, stmt: &NymphStatement) -> Statement<'a> {
+	pub fn emit_statement(&mut self, stmt: &HoopoeStatement) -> Statement<'a> {
 		match stmt {
-			NymphStatement::Expr(e) => {
+			HoopoeStatement::Expr(e) => {
 				let js = self.emit_expr(e);
 				if js.stmts.is_empty() {
 					self.ast.statement_expression(SPAN, js.expr)
@@ -1518,7 +1518,7 @@ impl<'a> Emitter<'a> {
 					self.ast.statement_expression(SPAN, expr)
 				}
 			}
-			NymphStatement::Let { meta, value } => {
+			HoopoeStatement::Let { meta, value } => {
 				let js = self.emit_expr(value);
 				let init = js.into_expression(self.ast, self.alloc);
 				let kind = if meta.mutable {
@@ -1667,7 +1667,7 @@ impl<'a> Emitter<'a> {
 					oxc::syntax::operator::BinaryOperator::LessEqualThan,
 					self.ident_ref("item"),
 				);
-				let into = self.nymph_string(self.concat_expressions(vec![
+				let into = self.hoopoe_string(self.concat_expressions(vec![
 					self.member(self.ast.expression_this(SPAN), "start"),
 					self.string_lit("..<"),
 				]));
@@ -1701,7 +1701,7 @@ impl<'a> Emitter<'a> {
 					oxc::syntax::operator::BinaryOperator::LessThan,
 					self.member(self.ast.expression_this(SPAN), "end"),
 				);
-				let into = self.nymph_string(self.concat_expressions(vec![
+				let into = self.hoopoe_string(self.concat_expressions(vec![
 					self.string_lit("..<"),
 					self.member(self.ast.expression_this(SPAN), "end"),
 				]));
@@ -1752,7 +1752,7 @@ impl<'a> Emitter<'a> {
 					oxc::syntax::operator::BinaryOperator::GreaterEqualThan,
 					self.member(self.ast.expression_this(SPAN), "end"),
 				);
-				let into = self.nymph_string(self.concat_expressions(vec![
+				let into = self.hoopoe_string(self.concat_expressions(vec![
 					self.member(self.ast.expression_this(SPAN), "start"),
 					self.string_lit("..<"),
 					self.member(self.ast.expression_this(SPAN), "end"),
@@ -1795,7 +1795,7 @@ impl<'a> Emitter<'a> {
 					oxc::syntax::operator::BinaryOperator::LessEqualThan,
 					self.member(self.ast.expression_this(SPAN), "end"),
 				);
-				let into = self.nymph_string(self.concat_expressions(vec![
+				let into = self.hoopoe_string(self.concat_expressions(vec![
 					self.string_lit("..="),
 					self.member(self.ast.expression_this(SPAN), "end"),
 				]));
@@ -1846,7 +1846,7 @@ impl<'a> Emitter<'a> {
 					oxc::syntax::operator::BinaryOperator::GreaterThan,
 					self.member(self.ast.expression_this(SPAN), "end"),
 				);
-				let into = self.nymph_string(self.concat_expressions(vec![
+				let into = self.hoopoe_string(self.concat_expressions(vec![
 					self.member(self.ast.expression_this(SPAN), "start"),
 					self.string_lit("..="),
 					self.member(self.ast.expression_this(SPAN), "end"),
@@ -2718,7 +2718,7 @@ impl<'a> Emitter<'a> {
 
 	// ───────────────── block expression ─────────────────
 
-	fn emit_block(&mut self, body: &[Spanned<NymphStatement>]) -> JsValue<'a> {
+	fn emit_block(&mut self, body: &[Spanned<HoopoeStatement>]) -> JsValue<'a> {
 		if body.is_empty() {
 			return JsValue {
 				stmts: self.ast.vec(),
@@ -2732,7 +2732,7 @@ impl<'a> Emitter<'a> {
 		for (i, stmt) in body.iter().enumerate() {
 			if i == last_idx {
 				match &stmt.0 {
-					NymphStatement::Expr(e) => {
+					HoopoeStatement::Expr(e) => {
 						let val = self.emit_expr(e);
 						for s in val.stmts {
 							stmts.push(s);
@@ -2742,7 +2742,7 @@ impl<'a> Emitter<'a> {
 							expr: val.expr,
 						};
 					}
-					NymphStatement::Let { .. } => {
+					HoopoeStatement::Let { .. } => {
 						stmts.push(self.emit_statement(&stmt.0));
 						return JsValue {
 							stmts,
@@ -2764,9 +2764,9 @@ impl<'a> Emitter<'a> {
 	// ───────────────── string emit ─────────────────
 
 	fn emit_string_parts(&mut self, parts: &[Spanned<StringPart>]) -> Expression<'a> {
-		// String in Nymph is Uint8Array (UTF-8 encoded).
-		// For now, emit as a helper call: __nymph_str("...")
-		// The runtime will provide __nymph_str that converts to Uint8Array.
+		// String in Hoopoe is Uint8Array (UTF-8 encoded).
+		// For now, emit as a helper call: __hoopoe_str("...")
+		// The runtime will provide __hoopoe_str that converts to Uint8Array.
 		let mut text = String::new();
 		let mut has_interpolation = false;
 
@@ -2789,13 +2789,13 @@ impl<'a> Emitter<'a> {
 		}
 
 		if !has_interpolation {
-			// Simple string: __nymph_str("text")
+			// Simple string: __hoopoe_str("text")
 			let mut args = self.ast.vec();
 			args.push(Argument::from(self.string_lit(&text)));
-			self.call(self.ident_ref("__nymph_str"), args)
+			self.call(self.ident_ref("__hoopoe_str"), args)
 		} else {
 			// Template literal with interpolation
-			// For now, build concatenation: __nymph_str("part1" + String(expr) + "part2")
+			// For now, build concatenation: __hoopoe_str("part1" + String(expr) + "part2")
 			let mut segments: Vec<Expression<'a>> = vec![];
 			let mut current_text = String::new();
 
@@ -2827,7 +2827,7 @@ impl<'a> Emitter<'a> {
 				segments.push(self.string_lit(&current_text));
 			}
 
-			// Concatenate all segments, then wrap in __nymph_str
+			// Concatenate all segments, then wrap in __hoopoe_str
 			let concat = segments
 				.into_iter()
 				.reduce(|a, b| {
@@ -2839,7 +2839,7 @@ impl<'a> Emitter<'a> {
 
 			let mut args = self.ast.vec();
 			args.push(Argument::from(concat));
-			self.call(self.ident_ref("__nymph_str"), args)
+			self.call(self.ident_ref("__hoopoe_str"), args)
 		}
 	}
 

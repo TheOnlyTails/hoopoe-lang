@@ -6,7 +6,7 @@
 whose value is the function's result; there's no separate `return` needed for the common case of
 "the last thing computed is the answer."
 
-```nym
+```hoo
 func add(a: int, b: int): int = a + b
 
 func classify(n: int): string = {
@@ -18,7 +18,7 @@ func classify(n: int): string = {
 
 The return type can be omitted and inferred from the body:
 
-```nym
+```hoo
 func doubled(x: int) = x * 2
 ```
 
@@ -36,11 +36,11 @@ explicitly completes a `void` function.
 Each parameter is `name: Type`. Parameter bindings and values are immutable. Functions return a
 replacement value when they need to represent an update.
 
-```nym
+```hoo
 func inc_twice(x: int): int = x + 2
 ```
 
-```nym
+```hoo
 struct Counter(n: int)
 func bump(c: Counter): Counter = Counter(n = c.n + 1)
 ```
@@ -51,7 +51,7 @@ A `...`-prefixed parameter still declares a single list-typed parameter (`...xs:
 parameter of type `#[int]`) — it's a marker for "this is meant to be spread into," not a variadic
 parameter list. Calling it takes a spread list argument:
 
-```nym
+```hoo
 func sum(...xs: #[int]): int = {
   xs.iter().fold(0, (total, x) -> total + x)
 }
@@ -66,7 +66,7 @@ implementing `Interface` (see [Interfaces and impls](./interfaces-and-impls#boun
 A + B>` requires more than one. Generic arguments are always **inferred** from the call's
 arguments — there is no explicit `f<int>(x)` syntax to pin them.
 
-```nym
+```hoo
 func id<T>(x: T): T = x
 
 interface Area { func area(): int }
@@ -89,7 +89,7 @@ A function value's type is written `(Params) -> Return` — see [Types](./types#
 A plain function name used as a value (not called) has this type, and so does a
 [closure](./expressions#closures):
 
-```nym
+```hoo
 func apply_twice(f: (int) -> int, x: int): int = f(f(x))
 
 func double(x: int): int = x * 2
@@ -104,7 +104,7 @@ function can use this declaration form:
 
 - `namespace func` — a static, invoked on the type itself (`Type.name(...)`), not an instance.
 
-```nym
+```hoo
 struct Counter(n: int) {
   func bumped(): Counter = Counter(n = this.n + 1)
   namespace func zero(): Counter = Counter(n = 0)

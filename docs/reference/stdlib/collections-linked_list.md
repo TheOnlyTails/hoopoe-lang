@@ -4,7 +4,7 @@ A doubly-linked list, as an alternative to the array-backed [list literal](../li
 the note there on array lists vs. linked lists for when you'd reach for one over the other. This is
 an opt-in standard-library type:
 
-```nymph
+```hoopoe
 import std/collections/linked_list with (LinkedList)
 
 func retain<T>(list: LinkedList<T>): LinkedList<T> = list
@@ -14,7 +14,7 @@ func retain<T>(list: LinkedList<T>): LinkedList<T> = list
 
 The current declarations are:
 
-```nym
+```hoo
 struct Node<T>(
   prev: Option<Node<T>>,
   next: Option<Node<T>>,

@@ -33,7 +33,7 @@ use crate::{
 	},
 	config,
 	db::{
-		Db, DefKey, Diagnostic, DiagnosticKind, Diagnostics, NymphDatabase, ProjectConfig, SourceFile,
+		Db, DefKey, Diagnostic, DiagnosticKind, Diagnostics, HoopoeDatabase, ProjectConfig, SourceFile,
 		TypeErrors,
 	},
 	prelude::IMPLICIT_PRELUDE_MODULES,
@@ -64,11 +64,11 @@ fn private_context_entry(entry: &ContextEntry) -> ContextEntry {
 	}
 }
 
-const BUILTIN_RANGE_CONSTRUCTOR: &str = "__nymph_builtin_range_Range";
-const BUILTIN_RANGE_FROM_CONSTRUCTOR: &str = "__nymph_builtin_range_RangeFrom";
-const BUILTIN_RANGE_TO_CONSTRUCTOR: &str = "__nymph_builtin_range_RangeTo";
-const BUILTIN_RANGE_INCLUSIVE_CONSTRUCTOR: &str = "__nymph_builtin_range_RangeInclusive";
-const BUILTIN_RANGE_TO_INCLUSIVE_CONSTRUCTOR: &str = "__nymph_builtin_range_RangeToInclusive";
+const BUILTIN_RANGE_CONSTRUCTOR: &str = "__hoopoe_builtin_range_Range";
+const BUILTIN_RANGE_FROM_CONSTRUCTOR: &str = "__hoopoe_builtin_range_RangeFrom";
+const BUILTIN_RANGE_TO_CONSTRUCTOR: &str = "__hoopoe_builtin_range_RangeTo";
+const BUILTIN_RANGE_INCLUSIVE_CONSTRUCTOR: &str = "__hoopoe_builtin_range_RangeInclusive";
+const BUILTIN_RANGE_TO_INCLUSIVE_CONSTRUCTOR: &str = "__hoopoe_builtin_range_RangeToInclusive";
 const BUILTIN_RANGE_ITEMS: [(&str, &str); 5] = [
 	("Range", BUILTIN_RANGE_CONSTRUCTOR),
 	("RangeFrom", BUILTIN_RANGE_FROM_CONSTRUCTOR),
@@ -653,7 +653,7 @@ pub struct TypeChecker {
 	pub next_type_var_id: u64,
 	/// Cache of processed modules (absolute path -> status) — used in non-salsa mode
 	module_cache: HashMap<PathBuf, ModuleStatus>,
-	/// The project root directory (where nymph.toml is located)
+	/// The project root directory (where hoopoe.toml is located)
 	project_root: Option<PathBuf>,
 	/// The current file being processed (for resolving relative imports)
 	current_file: Option<PathBuf>,
@@ -726,7 +726,7 @@ impl TypeChecker {
 		}
 	}
 
-	/// Find the project root by searching for nymph.toml
+	/// Find the project root by searching for hoopoe.toml
 	pub fn find_project_root(start: &Path) -> Option<PathBuf> {
 		// If it's a file (or looks like a file with an extension), start from parent
 		// We check for extension as the file might not exist yet (unsaved buffer)
@@ -737,7 +737,7 @@ impl TypeChecker {
 		};
 
 		loop {
-			let toml_path = current.join("nymph.toml");
+			let toml_path = current.join("hoopoe.toml");
 			if toml_path.exists() {
 				return Some(current);
 			}
@@ -753,8 +753,8 @@ impl TypeChecker {
 			module_path = module_path.join(segment);
 		}
 
-		let file_path = module_path.with_extension("nym");
-		let dir_path = module_path.join("mod.nym");
+		let file_path = module_path.with_extension("hoo");
+		let dir_path = module_path.join("mod.hoo");
 
 		match (file_path.exists(), dir_path.exists()) {
 			(true, false) => Some(file_path),
@@ -1091,9 +1091,9 @@ impl TypeChecker {
 			module_path = module_path.join(segment.0.as_str());
 		}
 
-		// Check for both foo.nym and foo/mod.nym
-		let file_path = module_path.with_extension("nym");
-		let dir_path = module_path.join("mod.nym");
+		// Check for both foo.hoo and foo/mod.hoo
+		let file_path = module_path.with_extension("hoo");
+		let dir_path = module_path.join("mod.hoo");
 
 		let file_exists = file_path.exists();
 		let dir_exists = dir_path.exists();
@@ -1149,7 +1149,7 @@ impl TypeChecker {
 		})?;
 
 		let filename: EcoString = abs_path.display().to_string().into();
-		let db = NymphDatabase::default();
+		let db = HoopoeDatabase::default();
 		let file = SourceFile::new(&db, filename.to_string(), source.to_string());
 		let result = queries::parse_file(&db, file);
 		let parse_errors: Vec<_> = queries::parse_file::accumulated::<Diagnostics>(&db, file)

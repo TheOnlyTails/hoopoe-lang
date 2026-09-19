@@ -18,7 +18,7 @@ test("CI cross-builds and packages every supported target", () => {
 		"darwin-arm64",
 	])
 		assert.match(workflow, new RegExp(`vscode: ${target}`));
-	assert.match(workflow, /cargo build --release -p nymph-lsp --target/);
+	assert.match(workflow, /cargo build --release -p hoopoe-lsp --target/);
 	assert.match(workflow, /vsce package .*--target/);
 	assert.match(workflow, /verify-vsix/);
 	assert.match(workflow, /upload-artifact/);

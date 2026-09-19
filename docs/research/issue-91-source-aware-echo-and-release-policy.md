@@ -8,31 +8,31 @@ issue 90.
 ## Current implementation facts
 
 - `echo` is design-only. There is no token, AST expression, semantic operation, HIR node, or emitter
-  path for it (`crates/nymph-ast/src/expr.rs`, `crates/nymph-hir/src/hir.rs`).
+  path for it (`crates/hoopoe-ast/src/expr.rs`, `crates/hoopoe-hir/src/hir.rs`).
 - `Debug` is an ordinary pure interface with a blanket external implementation
-  (`stdlib/src/ops/mod.nym:98-104`, `479-481`). Its runtime protocol first calls `$nymph$debug`, then
+  (`stdlib/src/ops/mod.hoo:98-104`, `479-481`). Its runtime protocol first calls `$hoopoe$debug`, then
   falls back to context-free structural rendering (`stdlib/src/display.ts:12-15`,
-  `crates/nymph-codegen/src/hashmap_runtime.js:176-222`).
+  `crates/hoopoe-codegen/src/hashmap_runtime.js:176-222`).
 - That structural fallback enumerates `Object.keys`, so it renders every emitted field and is unsafe
   for arbitrary host objects: property reads can invoke getters or proxies.
 - Stable complete module interfaces retain field names, visibility, types, and declaring identities
-  (`crates/nymph-sema/src/interface.rs:382-405`). Contextual semantic environments currently project
-  fields before consumer checking (`crates/nymph-sema/src/environment.rs:875-910`). Issue 90 requires
+  (`crates/hoopoe-sema/src/interface.rs:382-405`). Contextual semantic environments currently project
+  fields before consumer checking (`crates/hoopoe-sema/src/environment.rs:875-910`). Issue 90 requires
   complete private/internal structure to remain compiler-owned while contextual projection uses exact
   package and module identity.
 - HIR already owns executable evaluation order, and codegen emits call operands once in source order
-  (`crates/nymph-hir/src/hir.rs:229-320`, `crates/nymph-codegen/src/emit.rs:2000-2035`). A dedicated HIR
+  (`crates/hoopoe-hir/src/hir.rs:229-320`, `crates/hoopoe-codegen/src/emit.rs:2000-2035`). A dedicated HIR
   expression can therefore preserve one evaluation without synthesizing source-visible bindings.
 - `CompilerSession` project keys contain entry mode and emission-name options but no development or
-  release profile (`crates/nymph-compiler/src/project/session.rs:187-207`). CLI build/run/check and LSP
+  release profile (`crates/hoopoe-compiler/src/project/session.rs:187-207`). CLI build/run/check and LSP
   use the same compiler pipeline, with no release configuration.
 - Diagnostics already support warnings, stable codes, labels, notes, and help. Warnings do not block
-  compilation unless promoted to errors (`crates/nymph-diagnostics/src/lib.rs:12-100`,
-  `crates/nymph-cli/src/commands/check.rs:7-35`).
-- The CLI owns module-to-filesystem mapping through `nymph-project`; the compiler owns canonical
+  compilation unless promoted to errors (`crates/hoopoe-diagnostics/src/lib.rs:12-100`,
+  `crates/hoopoe-cli/src/commands/check.rs:7-35`).
+- The CLI owns module-to-filesystem mapping through `hoopoe-project`; the compiler owns canonical
   module identity and spans. `run` inherits Node stdio, while the REPL already detects terminal input
-  and mediates a persistent Node worker (`crates/nymph-cli/src/commands/run.rs:93-124`,
-  `crates/nymph-cli/src/commands/repl.rs:1-105`).
+  and mediates a persistent Node worker (`crates/hoopoe-cli/src/commands/run.rs:93-124`,
+  `crates/hoopoe-cli/src/commands/repl.rs:1-105`).
 
 ## Resolved language contract
 
@@ -48,7 +48,7 @@ stderr observation is outside program semantics. Concurrent observations are ind
 but their relative order is unspecified.
 
 Unlike the earlier draft, echo is intentionally visibility-insensitive. It recursively renders the
-complete structure of ordinary Nymph values, including private and internal fields. Field visibility
+complete structure of ordinary Hoopoe values, including private and internal fields. Field visibility
 remains source access control, not secrecy from development terminals, CI logs, host capture, or
 observation-enabled artifacts. This is a deliberate development-time disclosure boundary.
 
@@ -58,12 +58,12 @@ Compiler-generated nominal `Debug` implementations are `internal` and owned by t
 module, following issue 90's generated-implementation ownership rule. A type author may instead
 provide an ordinary `public impl Debug` for public `.debug()` behavior; it still does not affect echo.
 
-Deep structural rendering is restricted to compiler-recognized ordinary Nymph values: boxed scalars,
+Deep structural rendering is restricted to compiler-recognized ordinary Hoopoe values: boxed scalars,
 persistent collections, tuples/maps, and canonical emitted structs/enums. Functions, managed
 resources, and opaque external references render as inert type-tagged placeholders. Echo must not
 invoke getters, proxies, `toString`, `Debug`, or any user/host callback. A renderer defect produces an
 inert placeholder rather than throwing into or otherwise changing program control flow. Authors can
-snapshot external state into an ordinary Nymph value when they need structural observation.
+snapshot external state into an ordinary Hoopoe value when they need structural observation.
 
 ## Compiler and runtime seam
 
@@ -76,7 +76,7 @@ source Echo(operand)
 ```
 
 Do not desugar it to `.debug()` or `println`. In an observation-enabled development artifact, codegen
-emits one call equivalent to `nymphEcho(operand, site)`. JavaScript argument evaluation evaluates the
+emits one call equivalent to `hoopoeEcho(operand, site)`. JavaScript argument evaluation evaluates the
 operand once; the helper writes one line and returns the same object/value. In release emission,
 codegen emits only `operand`. This preserves its evaluation and effects while removing observation.
 
@@ -88,7 +88,7 @@ visibility metadata: its ordinary-value renderer deliberately uses complete runt
 An observation line is written to stderr with a one-based source location and value:
 
 ```text
-main.nym:12:5: Credential(secret: "...")
+main.hoo:12:5: Credential(secret: "...")
 ```
 
 Only the filename is displayed. When stderr is a terminal and a source URI is available, the location
@@ -115,7 +115,7 @@ inputs; they do not scan syntax or reinterpret diagnostics independently.
   echo-in-release = "warn"
   ```
 
-- `nymph build`, `nymph run`, and `nymph check` default to development and accept `--release`.
+- `hoopoe build`, `hoopoe run`, and `hoopoe check` default to development and accept `--release`.
   Release `check` evaluates the same lint without emitting. REPL is always development.
 - LSP defaults to development and exposes a workspace setting for release-profile diagnostics while
   consuming the same manifest lint level.

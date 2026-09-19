@@ -1,0 +1,20 @@
+[package]
+name = "hoopoe-syntax"
+description = "Lexer and parser for the Hoopoe language, producing the hoopoe-ast tree."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+hoopoe-ast = { workspace = true }
+hoopoe-diagnostics = { workspace = true }
+hoopoe-errorcode = { workspace = true }
+ecow = { workspace = true }
+ordered-float = { workspace = true }
+unicode-ident = "1.0.24"
+
+[lints.clippy]
+all = "warn"

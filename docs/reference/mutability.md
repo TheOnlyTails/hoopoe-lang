@@ -1,11 +1,11 @@
 # Immutability
 
-Nymph values and local bindings are immutable. Nymph has no `mut` binding, `mut T`,
+Hoopoe values and local bindings are immutable. Hoopoe has no `mut` binding, `mut T`,
 `mut func`, field assignment, index assignment, or compound assignment. Construct a new value instead
 of changing an old one; persistent collections may share storage internally while preserving the old
 value.
 
-```nym
+```hoo
 struct Counter(value: int)
 
 func increment(counter: Counter): Counter = Counter(value = counter.value + 1)
@@ -22,7 +22,7 @@ Use an immutable [state loop](./iteration#state-loops). Its header creates fresh
 bindings for each iteration, and `continue(name = value)` replaces them simultaneously. Use `fold`
 when the operation is naturally a reduction.
 
-```nym
+```hoo
 func sum_to(limit: int): int = loop@sum (
   let next = 1
   let total = 0
@@ -33,4 +33,4 @@ func sum_to(limit: int): int = loop@sum (
 ```
 
 There is no source `while`. JavaScript emitted by the compiler may use mutation and host loops as an
-unobservable optimization; that does not make either operation part of Nymph source semantics.
+unobservable optimization; that does not make either operation part of Hoopoe source semantics.

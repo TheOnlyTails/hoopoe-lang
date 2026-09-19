@@ -24,28 +24,28 @@ fn parse_module(
 ) {
 	let tokens = lexer().parse(source).unwrap();
 	let eoi = crate::ast::Span::new(source.len(), source.len());
-	let (Spanned(module, _), errors) = parse(&tokens, eoi, "test.nym".into());
+	let (Spanned(module, _), errors) = parse(&tokens, eoi, "test.hoo".into());
 	(module, errors)
 }
 
 fn parse_expr(source: &str) -> Option<Spanned<Expr>> {
 	let tokens = lexer().parse(source).unwrap();
 	let eoi = crate::ast::Span::new(source.len(), source.len());
-	let mut parser = super::core::Parser::new(&tokens, eoi, "test.nym".into());
+	let mut parser = super::core::Parser::new(&tokens, eoi, "test.hoo".into());
 	parser.parse_expression()
 }
 
 fn parse_type(source: &str) -> Option<Spanned<Type>> {
 	let tokens = lexer().parse(source).unwrap();
 	let eoi = crate::ast::Span::new(source.len(), source.len());
-	let mut parser = super::core::Parser::new(&tokens, eoi, "test.nym".into());
+	let mut parser = super::core::Parser::new(&tokens, eoi, "test.hoo".into());
 	parser.parse_type()
 }
 
 fn parse_pattern(source: &str) -> Option<Spanned<Pattern>> {
 	let tokens = lexer().parse(source).unwrap();
 	let eoi = crate::ast::Span::new(source.len(), source.len());
-	let mut parser = super::core::Parser::new(&tokens, eoi, "test.nym".into());
+	let mut parser = super::core::Parser::new(&tokens, eoi, "test.hoo".into());
 	parser.parse_pattern()
 }
 

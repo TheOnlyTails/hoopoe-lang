@@ -36,7 +36,7 @@ const fileInterface = Object.freeze({
 			audit: { externalState: "Read", transaction: "Irreversible" },
 			call: "Ordinary",
 			parameters: [{ marshal: "OpaqueIdentity", type: fileType }],
-			result: { marshal: "NymphAbi", type: "Result<string, FileError>" },
+			result: { marshal: "HoopoeAbi", type: "Result<string, FileError>" },
 		},
 		{
 			name: "read_all",
@@ -45,7 +45,7 @@ const fileInterface = Object.freeze({
 			audit: { externalState: "Read", transaction: "Irreversible" },
 			call: "Cancellable",
 			parameters: [{ marshal: "OpaqueIdentity", type: fileType }],
-			result: { marshal: "NymphAbi", type: "Result<string, FileError>" },
+			result: { marshal: "HoopoeAbi", type: "Result<string, FileError>" },
 		},
 		{
 			name: "close",
@@ -54,7 +54,7 @@ const fileInterface = Object.freeze({
 			audit: { externalState: "Write", transaction: "Irreversible" },
 			call: "Ordinary",
 			parameters: [{ marshal: "OpaqueIdentity", type: fileType }],
-			result: { marshal: "NymphAbi", type: "void" },
+			result: { marshal: "HoopoeAbi", type: "void" },
 		},
 	],
 });
@@ -124,7 +124,7 @@ const marshalArgument = (plan, value) => {
 		case "OpaqueIdentity":
 		case "RawInt":
 			return value.value;
-		case "NymphAbi":
+		case "HoopoeAbi":
 			return value;
 		default:
 			throw new Error(`unknown marshal plan ${plan.marshal}`);
@@ -156,12 +156,12 @@ assert.equal(readAll.call, "Cancellable");
 assert.deepEqual(closeContract.method.effects, ["E"]);
 assert.match(JSON.stringify(fileInterface), /"effects":\["Filesystem"\]/);
 
-const hostFile = createHostFile("nymph");
+const hostFile = createHostFile("hoopoe");
 const file = NExternal(fileType, hostFile);
 const alias = file;
 const frame = { abortSignal: new AbortController().signal };
 assert.equal(marshalArgument(read.parameters[0], file), hostFile);
-assert.deepEqual(invokeNodeAdapter(lowerExternalCall(read, [alias]), frame), Ok(NString("nymph")));
+assert.deepEqual(invokeNodeAdapter(lowerExternalCall(read, [alias]), frame), Ok(NString("hoopoe")));
 assert.equal(lowerExternalCall(read, [file]).cancellation, "None");
 assert.equal(lowerExternalCall(readAll, [file]).cancellation, "ExecutionSignal");
 

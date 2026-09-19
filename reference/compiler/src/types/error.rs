@@ -323,7 +323,7 @@ impl Display for TypeError {
 			TypeErrorKind::ProjectRootNotFound { searched_from } => {
 				write!(
 					f,
-					"Could not find project root (nymph.toml) searching from '{}'",
+					"Could not find project root (hoopoe.toml) searching from '{}'",
 					searched_from
 				)
 			}

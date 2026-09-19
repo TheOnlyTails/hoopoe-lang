@@ -5,7 +5,7 @@ non-mutating sorting methods.
 
 ## `any`
 
-```nym
+```hoo
 let has_even = #[1, 2, 3].any((value) -> value % 2 == 0)
 ```
 
@@ -13,7 +13,7 @@ let has_even = #[1, 2, 3].any((value) -> value % 2 == 0)
 
 ## `join`
 
-```nym
+```hoo
 let words = #["one", "two", "three"].join(" | ")
 let numbers = #[1, 2, 3].join(", ")
 ```
@@ -24,7 +24,7 @@ the empty string.
 
 ## `sort`
 
-```nym
+```hoo
 let sorted = #[3, 1, 2].sort()
 ```
 
@@ -34,7 +34,7 @@ retain their relative source order.
 
 ## `sort_by`
 
-```nym
+```hoo
 let descending = #[1, 3, 2].sort_by((left, right) ->
   if (left > right) { Order.LessThan }
   else if (left < right) { Order.GreaterThan }

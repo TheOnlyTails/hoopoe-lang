@@ -323,11 +323,11 @@ fn test_infer_anonymous_param_without_context_reports_explicit_closure_help() {
 		} if placeholders == &vec![None, Some(1)]
 	));
 
-	let report = type_error_to_report(EcoString::from("test.nym"), &error);
+	let report = type_error_to_report(EcoString::from("test.hoo"), &error);
 	let mut output = Vec::new();
 	report
 		.write(
-			(EcoString::from("test.nym"), Source::from("$ + $1")),
+			(EcoString::from("test.hoo"), Source::from("$ + $1")),
 			&mut output,
 		)
 		.unwrap();

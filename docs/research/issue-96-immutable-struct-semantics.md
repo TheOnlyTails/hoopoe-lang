@@ -8,7 +8,7 @@ identity; it does not implement it.
 
 Struct construction and patterns use named fields only:
 
-```nymph
+```hoopoe
 let fresh = Foo(p = 1, i = 2, q = 3)
 let clone = Foo(...fresh)
 let updated = Foo(...fresh, p = 4)
@@ -35,7 +35,7 @@ the shape-only pattern available wherever `Foo` can be named.
 
 An omitted struct-field visibility is `internal`:
 
-```nymph
+```hoopoe
 public struct Foo(
 	public p: int,
 	i: int,          // internal

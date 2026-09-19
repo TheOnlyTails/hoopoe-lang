@@ -1,19 +1,19 @@
 # Draft language identity
 
-This document records the current direction for Nymph's type system and language semantics. It is
+This document records the current direction for Hoopoe's type system and language semantics. It is
 design documentation, not the implemented language reference. Where it conflicts with older draft
 designs, this document takes precedence.
 
 ## Identity
 
-Nymph is a language of **functional immutable values with checked effects**. It does not adopt
+Hoopoe is a language of **functional immutable values with checked effects**. It does not adopt
 Rust-style ownership for ordinary data. Its center is approachable syntax, persistent values, strong
 static checking, explicit expected errors, checked effects, structured concurrency, and narrowly
 managed resources.
 
 The safety boundary is deliberate:
 
-- Ordinary Nymph values are immutable and structurally comparable where lawful.
+- Ordinary Hoopoe values are immutable and structurally comparable where lawful.
 - Shared mutation, ownership, and borrowing do not exist for ordinary values.
 - Host resources and JavaScript objects are opaque external references. Their changing state is
   represented through effects and runtime behavior rather than a general borrow checker.
@@ -23,7 +23,7 @@ The safety boundary is deliberate:
 
 All ordinary values are immutable. Bindings cannot be reassigned; state evolution uses shadowing:
 
-```nymph
+```hoopoe
 let users = #[alice, bob]
 let users = users.appended(charlie)
 
@@ -32,12 +32,12 @@ let account = Account(...account, balance = 20)
 ```
 
 Old values remain valid and unchanged. Runtime implementations may use mutation or structural sharing
-internally, but this cannot be observed through Nymph semantics.
+internally, but this cannot be observed through Hoopoe semantics.
 
 Closures capture the specific immutable binding visible where they are created. A later shadowing
 declaration creates a distinct binding.
 
-There is no `mut T`, `let mut`, or `mut func` for ordinary Nymph data.
+There is no `mut T`, `let mut`, or `mut func` for ordinary Hoopoe data.
 
 ## Structural equality and hashing
 
@@ -62,7 +62,7 @@ must always agree with equality.
 Constructor visibility is derived entirely from field visibility; there is no separate constructor
 modifier.
 
-```nymph
+```hoopoe
 public struct Foo(
   public p: int,
   internal a: int,
@@ -113,7 +113,7 @@ General rules:
 
 Struct updates use one exact-type source spread first, with named explicit replacements winning:
 
-```nymph
+```hoopoe
 let user = User(
   ...user,
   name = "Mira",
@@ -133,11 +133,11 @@ visibility-sensitive.
 
 Compiler observation is deliberately visibility-insensitive:
 
-```nymph
+```hoopoe
 echo credential
 ```
 
-`echo` recursively renders complete ordinary Nymph structure, including private and internal fields.
+`echo` recursively renders complete ordinary Hoopoe structure, including private and internal fields.
 Field visibility controls source access, not secrecy from development output. It never dispatches
 `Debug`, invokes host hooks or getters, or structurally traverses functions, managed resources, or
 opaque external references; those render as inert type-tagged placeholders. An explicit `Debug`
@@ -150,14 +150,14 @@ interface.
 
 `echo` is a compiler expression:
 
-```nymph
+```hoopoe
 echo value
 ```
 
 It prints a source-aware debug representation and returns its operand unchanged, so it is available
 in pipelines:
 
-```nymph
+```hoopoe
 input
   |> parse
   |> echo
@@ -192,7 +192,7 @@ their warning policy when compiled as roots.
 
 Effects are nominal, statically tracked labels:
 
-```nymph
+```hoopoe
 effect Database
 effect Network
 effect Io
@@ -218,7 +218,7 @@ T               == T + !()
 
 Effects compose as an idempotent, commutative set.
 
-```nymph
+```hoopoe
 func parse(text: string): Config
 func query(sql: string): Result<Rows, DbError> + !Database
 func log(message: string): !Telemetry
@@ -227,19 +227,19 @@ func log(message: string): !Telemetry
 Omitted effects on an explicitly written return type mean purity. Effect inference is requested
 explicitly:
 
-```nymph
+```hoopoe
 func load(path: Path): Result<string, IoError> + !_ = todo
 ```
 
 A fully omitted return type infers both its value and effects:
 
-```nymph
+```hoopoe
 func load(path: Path) = File.read_text(path)
 ```
 
 Effect parameters use generic syntax:
 
-```nymph
+```hoopoe
 func apply<T, U, !E>(
   value: T,
   operation: (T) -> U + !E,
@@ -248,7 +248,7 @@ func apply<T, U, !E>(
 
 Known effects may be combined with an inferred remainder:
 
-```nymph
+```hoopoe
 func synchronize(): Result<void, Error> + !Database + !_ = todo
 ```
 
@@ -268,7 +268,7 @@ security boundary against dishonest FFI declarations.
 
 Interface methods declare effect upper bounds. Implementations may be narrower but not broader:
 
-```nymph
+```hoopoe
 interface Store<Item, !LoadEffects> {
   func load(id: Id): Result<Item, StoreError> + !LoadEffects
 }
@@ -286,14 +286,14 @@ Generic arguments are available at calls. All, some, or none may be supplied.
 
 By position:
 
-```nymph
+```hoopoe
 convert<int, string, Strict>(value)
 convert<_, string, _>(value)
 ```
 
 By name:
 
-```nymph
+```hoopoe
 convert<Target = string>(value)
 convert<Mode = Strict, Target = string>(value)
 ```
@@ -306,7 +306,7 @@ named explicitly.
 
 One generic conversion surface replaces collection-specific conversion methods:
 
-```nymph
+```hoopoe
 iterator.to<#[_]>()
 pairs.to<#{_: _}>()
 items.to<Set<_>>()
@@ -314,7 +314,7 @@ items.to<Set<_>>()
 
 Expected-type inference permits:
 
-```nymph
+```hoopoe
 let values: #[int] = iterator.to()
 ```
 
@@ -333,7 +333,7 @@ as T              explicit checked cast that may panic
 
 ## Error handling and `?`
 
-Expected failure remains `Option` or `Result`; Nymph has no exceptions.
+Expected failure remains `Option` or `Result`; Hoopoe has no exceptions.
 
 `?` behaves as follows:
 
@@ -357,7 +357,7 @@ declared effects.
 
 Enums may embed all variants of another enum or selected qualified variants:
 
-```nymph
+```hoopoe
 enum Bor {
   E,
   F,
@@ -384,7 +384,7 @@ Every enum denotes a nominal static view and a deduplicated set of accepted sing
 Every variant is itself an ordinary, source-nameable type, including in parameters, results, generic
 arguments, and error types:
 
-```nymph
+```hoopoe
 func only_f(value: Bor.F): Result<void, Bor.F> = todo
 ```
 
@@ -393,7 +393,7 @@ variant in the source enum's set. A selected embedding accepts only that qualifi
 type. Assignment, argument passing, returning, or `as` may change the static view when the source's
 set is a subset of the destination's set:
 
-```nymph
+```hoopoe
 let foo = Foo.A
 let bar: Bar = foo
 consume_bar(foo)
@@ -409,7 +409,7 @@ Methods dispatch through the static view. Viewing `foo` as `Bar` selects Bar's i
 qualified pattern rebinds the same value through its source enum view and therefore selects source
 methods:
 
-```nymph
+```hoopoe
 bar.calc() // Bar.calc
 
 match (bar) {
@@ -421,7 +421,7 @@ match (bar) {
 Patterns always use original qualified variants. Source-enum spread patterns such as `...Foo` are
 invalid. Exhaustiveness operates on the destination's final deduplicated set:
 
-```nymph
+```hoopoe
 match (bar) {
   foo_a = Foo.A -> handle_a(foo_a),
   foo_b = Foo.B -> handle_b(foo_b),
@@ -450,7 +450,7 @@ generic argument requires an annotation or explicit view.
 Equality is available between equalable enum types whose accepted sets overlap. It compares the
 original stable variant identity and fields, not the current static view:
 
-```nymph
+```hoopoe
 let bar: Bar = Foo.A
 Foo.A == bar
 ```
@@ -464,7 +464,7 @@ Runtime identity reifies only generic arguments used by the variant.
 Iterators are persistent values whose step returns a nominal result and successor state. The successor
 keeps the receiver's full static iterator capabilities:
 
-```nymph
+```hoopoe
 enum Iteration<Item, Next> {
   Done,
   Yield(item: Item, next: Next),
@@ -481,7 +481,7 @@ interface ExactSizeIterator<Item + !E>: Iterator<Item + !E> {
 
 Conceptually:
 
-```nymph
+```hoopoe
 let Iteration.Yield(item = first, next = iterator) = iterator.next()
 let Iteration.Yield(item = second, next = iterator) = iterator.next()
 ```
@@ -499,7 +499,7 @@ abstraction.
 
 Iterator methods are directly chainable from iterable values:
 
-```nymph
+```hoopoe
 items
   .map(transform)
   .filter(predicate)
@@ -513,7 +513,7 @@ items
 lazy adapter is pure. Predictably ordered callbacks may carry effects, which join the source's latent
 row and occur only when consumed:
 
-```nymph
+```hoopoe
 let traced: Iterator<int + !Io> =
   items.map((item) -> {
     println("${item}")
@@ -532,7 +532,7 @@ traversal order unless a separate API explicitly promises concurrency.
 
 Generic conversion remains canonical, with clear aliases for standard collections:
 
-```nymph
+```hoopoe
 iterator.to<#[int]>()
 pairs.to<#{string: int}>()
 items.to<Set<int>>()
@@ -565,7 +565,7 @@ Accumulation uses `fold`, `for`, or functional state loops rather than mutable l
 General mutation-oriented `while` loops are removed. A functional state loop declares immutable
 loop-carried bindings and advances them through named `continue` values:
 
-```nymph
+```hoopoe
 loop@state (
   let index: uint = 0
   let use file = File.open(path)?
@@ -598,7 +598,7 @@ valued `break` produces `T`; a bare break produces `void`.
 
 ## Proper tail calls
 
-Nymph guarantees proper tail calls as language semantics, including:
+Hoopoe guarantees proper tail calls as language semantics, including:
 
 - Direct self-recursion
 - Mutual recursion
@@ -670,7 +670,7 @@ integer indices count from the end.
 
 Range indexing is supported for homogeneous collections and strings:
 
-```nymph
+```hoopoe
 items[1..3]
 items[1..=3]
 items[..2]
@@ -683,7 +683,7 @@ Rules:
 
 - An exclusive end may equal the collection length.
 - An inclusive end must name an existing element.
-- Reversed in-bounds ranges produce an empty result, matching Nymph range semantics.
+- Reversed in-bounds ranges produce an empty result, matching Hoopoe range semantics.
 - Out-of-bounds ranges panic through `[]` and return `None` through `.get`.
 - List slices are immutable values and may structurally share storage.
 - String indices use Unicode code-point offsets.
@@ -695,13 +695,13 @@ because result types are heterogeneous. Variadic generics do not make dynamic tu
 
 Managed immutable bindings use `let use`:
 
-```nymph
+```hoopoe
 let use file = File.open(path)?
 ```
 
 Any nominal type may implement the effect-parameterized synchronous cleanup interface:
 
-```nymph
+```hoopoe
 interface Close<!E> {
   func close(): void + !E
 }
@@ -752,7 +752,7 @@ Cleanup defects follow these rules:
 
 ## JavaScript interop
 
-External declarations are trusted ABI promises. Nymph performs the ABI conversion implied by the
+External declarations are trusted ABI promises. Hoopoe performs the ABI conversion implied by the
 signature and calls the host function. It does not automatically:
 
 - Catch JavaScript exceptions
@@ -762,12 +762,12 @@ signature and calls the host function. It does not automatically:
 - Detect undeclared effects or mutation
 - Repair incorrect prototypes or generic arguments
 
-The FFI author is responsible for correctness. A declared `Result` must be returned in Nymph ABI form;
+The FFI author is responsible for correctness. A declared `Result` must be returned in Hoopoe ABI form;
 exceptions are not converted automatically.
 
 Opaque external types preserve live JavaScript identity and mutability:
 
-```nymph
+```hoopoe
 external type JsArray<T> {
   external func length(): uint + !Js
   external func get(index: uint): Option<T> + !Js
@@ -777,7 +777,7 @@ external type JsArray<T> {
 
 Methods must be declared inside the external type or an impl block. Reads of externally mutable state
 are effects too. External types receive no automatic structural equality, hashing, or serialization.
-Explicit conversion can snapshot them into ordinary immutable Nymph collections.
+Explicit conversion can snapshot them into ordinary immutable Hoopoe collections.
 
 ## Async task model
 
@@ -801,7 +801,7 @@ are:
 
 Low-level selection observes running handles without owning them:
 
-```nymph
+```hoopoe
 struct Selection<T>(
   index: uint,
   result: Result<T, HandleError>,
@@ -815,7 +815,7 @@ handles. If several inputs are already settled, it chooses the lowest input inde
 
 `Task.race` owns its executions:
 
-```nymph
+```hoopoe
 Task.race(tasks): Task<Result<T, HandleError> + !E>
 ```
 
@@ -843,7 +843,7 @@ rather than only saying “resource may escape.”
 
 ## Safety and complexity tradeoff
 
-Nymph spends compiler and runtime complexity on:
+Hoopoe spends compiler and runtime complexity on:
 
 - Persistent immutable values
 - Structural equality and hashing

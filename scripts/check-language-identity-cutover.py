@@ -30,34 +30,34 @@ RULES = (
     Rule(
         "syntax-ast",
         "accepted-legacy-ast",
-        ("crates/nymph-ast", "crates/nymph-syntax", "crates/nymph-format", "crates/nymph-lsp"),
+        ("crates/hoopoe-ast", "crates/hoopoe-syntax", "crates/hoopoe-format", "crates/hoopoe-lsp"),
         re.compile(r"\b(?:Type::Mut|LetKind::Mut|FuncKind::Mut|ExprKind::AssignOp|ExprKind::While|AssignOperator)\b"),
-        "crates/nymph-ast/src/seed.rs",
+        "crates/hoopoe-ast/src/seed.rs",
         "ExprKind::While",
     ),
     Rule(
         "sema-stable",
         "semantic-and-stable-legacy",
-        ("crates/nymph-sema",),
+        ("crates/hoopoe-sema",),
         re.compile(r"\b(?:TyKind::Mut|implicit_uint_to_int|StableExprKind::AssignOp|StableExprKind::While)\b"),
-        "crates/nymph-sema/src/seed.rs",
+        "crates/hoopoe-sema/src/seed.rs",
         "StableExprKind::AssignOp",
     ),
     Rule(
         "hir-emitter",
         "legacy-hir-and-emitter",
-        ("crates/nymph-hir", "crates/nymph-codegen", "crates/nymph-sema/src/stable_lowering.rs"),
+        ("crates/hoopoe-hir", "crates/hoopoe-codegen", "crates/hoopoe-sema/src/stable_lowering.rs"),
         re.compile(r"\b(?:HirExpr::Assign|HirExpr::While|lower_for)\b|\bmutable\s*:\s*bool\b"),
-        "crates/nymph-codegen/src/seed.rs",
+        "crates/hoopoe-codegen/src/seed.rs",
         "HirExpr::Assign",
     ),
     Rule(
         "runtime",
         "source-compatibility-runtime",
-        ("crates/nymph-codegen", "stdlib/src"),
-        re.compile(r"\b(?:nymphCell(?:Get|Set)?|NymphListIterator|NymphMapIterator)\b"),
-        "crates/nymph-codegen/src/seed.rs",
-        "nymphCellSet",
+        ("crates/hoopoe-codegen", "stdlib/src"),
+        re.compile(r"\b(?:hoopoeCell(?:Get|Set)?|HoopoeListIterator|HoopoeMapIterator)\b"),
+        "crates/hoopoe-codegen/src/seed.rs",
+        "hoopoeCellSet",
     ),
     Rule(
         "extension",
@@ -70,36 +70,36 @@ RULES = (
     Rule(
         "release-echo",
         "release-echo-bytes",
-        ("crates/nymph-compiler/src", "crates/nymph-codegen/src", "stdlib/src"),
-        re.compile(r"\b(?:nymphEcho|echoObserver|echoSite|echoSourceUri)\b"),
-        "crates/nymph-codegen/src/seed.rs",
-        "nymphEcho",
+        ("crates/hoopoe-compiler/src", "crates/hoopoe-codegen/src", "stdlib/src"),
+        re.compile(r"\b(?:hoopoeEcho|echoObserver|echoSite|echoSourceUri)\b"),
+        "crates/hoopoe-codegen/src/seed.rs",
+        "hoopoeEcho",
     ),
     Rule(
         "inert-build",
         "ordinary-build-launcher",
-        ("crates/nymph-compiler/src/project",),
+        ("crates/hoopoe-compiler/src/project",),
         re.compile(r"(?:append|push_str|format!)\s*\([^\n]{0,120}\bmain\s*\(\s*\)"),
-        "crates/nymph-compiler/src/project/seed.rs",
+        "crates/hoopoe-compiler/src/project/seed.rs",
         'output.push_str("main()")',
     ),
 )
 
 SOURCE_ROOTS = (ROOT / "stdlib/src", ROOT / "examples")
 RUST_SOURCE_ROOTS = (
-    ROOT / "crates/nymph-syntax/tests",
-    ROOT / "crates/nymph-sema/tests",
-    ROOT / "crates/nymph-compiler/tests",
-    ROOT / "crates/nymph-cli/tests",
-    ROOT / "crates/nymph-format/tests",
-    ROOT / "crates/nymph-lsp/tests",
+    ROOT / "crates/hoopoe-syntax/tests",
+    ROOT / "crates/hoopoe-sema/tests",
+    ROOT / "crates/hoopoe-compiler/tests",
+    ROOT / "crates/hoopoe-cli/tests",
+    ROOT / "crates/hoopoe-format/tests",
+    ROOT / "crates/hoopoe-lsp/tests",
 )
 GENERATED_SOURCE_FILES = (
-    ROOT / "crates/nymph-compiler/src/project/repl.rs",
-    ROOT / "crates/nymph-cli/src/commands/new.rs",
-    ROOT / "crates/nymph-compiler/src/host_runtime.rs",
+    ROOT / "crates/hoopoe-compiler/src/project/repl.rs",
+    ROOT / "crates/hoopoe-cli/src/commands/new.rs",
+    ROOT / "crates/hoopoe-compiler/src/host_runtime.rs",
 )
-MUTATION_ROOTS = (ROOT / "stdlib/src", ROOT / "crates/nymph-codegen/src")
+MUTATION_ROOTS = (ROOT / "stdlib/src", ROOT / "crates/hoopoe-codegen/src")
 
 TOKEN = re.compile(
     r"[A-Za-z_][A-Za-z0-9_]*|\*\*=|<<=|>>=|&&=|\|\|=|[+\-*/%&|^~]=|==|!=|<=|>=|\S"
@@ -219,11 +219,11 @@ def markdown_sources(path: Path) -> list[tuple[str, str, int]]:
     index = 0
     for match in fence.finditer(text):
         language = match.group(1).strip().split(maxsplit=1)[0] if match.group(1).strip() else ""
-        if language != "nym":
+        if language != "hoo":
             continue
         index += 1
         line = line_number(text, match.start(2))
-        sources.append((f"{relative(path)}#nym-fence-{index}", match.group(2), line))
+        sources.append((f"{relative(path)}#hoo-fence-{index}", match.group(2), line))
     return sources
 
 
@@ -251,7 +251,7 @@ def rust_strings(path: Path) -> list[tuple[str, str, int]]:
     return found
 
 
-def looks_like_nymph_source(source: str) -> bool:
+def looks_like_hoopoe_source(source: str) -> bool:
     if re.search(r"(?:=>|\b(?:const|function|class)\b|console\.|process\.|</?[A-Za-z]|\[package\])", source):
         return False
     return re.search(
@@ -275,7 +275,7 @@ def add_match(
 
 def scan_sources(findings: dict[tuple[str, str, str], list[tuple[int, str]]]) -> None:
     for source_root in SOURCE_ROOTS:
-        for path in sorted(source_root.rglob("*.nym")):
+        for path in sorted(source_root.rglob("*.hoo")):
             source = path.read_text(encoding="utf-8")
             for rule, line, text in source_matches(source):
                 add_match(findings, "source", rule, relative(path), line, text)
@@ -293,7 +293,7 @@ def scan_sources(findings: dict[tuple[str, str, str], list[tuple[int, str]]]) ->
             continue
         category = "generated-source" if path in GENERATED_SOURCE_FILES else "parser-fixture-source"
         for name, source, base_line in rust_strings(path):
-            if not looks_like_nymph_source(source):
+            if not looks_like_hoopoe_source(source):
                 continue
             for rule, line, text in source_matches(source, base_line):
                 add_match(findings, category, rule, name, line, text)
@@ -309,7 +309,7 @@ def scan_static_rules(findings: dict[tuple[str, str, str], list[tuple[int, str]]
             elif path.is_dir():
                 files.update(candidate for candidate in path.rglob("*") if candidate.is_file())
         for path in sorted(files):
-            if path.suffix not in {".rs", ".ts", ".js", ".json", ".nym", ".d.ts"}:
+            if path.suffix not in {".rs", ".ts", ".js", ".json", ".hoo", ".d.ts"}:
                 continue
             try:
                 text = path.read_text(encoding="utf-8")
@@ -396,12 +396,12 @@ def self_test() -> None:
     }, found
     iterator = source_matches("mut func next(): Option<int>")
     assert {rule for rule, _, _ in iterator} == {"source-mut", "source-option-iterator"}
-    assert looks_like_nymph_source("func main(): void = {}")
-    assert looks_like_nymph_source("let mut value = 0\nvalue = 1")
-    assert not looks_like_nymph_source("const value = 0; value += 1;")
-    assert not looks_like_nymph_source('[package]\nname = "fixture"')
+    assert looks_like_hoopoe_source("func main(): void = {}")
+    assert looks_like_hoopoe_source("let mut value = 0\nvalue = 1")
+    assert not looks_like_hoopoe_source("const value = 0; value += 1;")
+    assert not looks_like_hoopoe_source('[package]\nname = "fixture"')
     assert not source_matches("let stable = 1\nlet = 2")
-    markdown = "```nymph\nlet mut ignored = 0\n```\n```nym\nlet mut found = 0\n```\n"
+    markdown = "```hoopoe\nlet mut ignored = 0\n```\n```hoo\nlet mut found = 0\n```\n"
     temporary = ROOT / ".language-identity-self-test.md"
     try:
         temporary.write_text(markdown, encoding="utf-8")

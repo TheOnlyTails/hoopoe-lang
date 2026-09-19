@@ -2,7 +2,7 @@ use crate::ast::ops::{AssignOperator, BinaryOperator, PostfixOperator, PrefixOpe
 
 /// Returns the interface method name for a binary operator.
 ///
-/// All binary operators in Nymph are dispatched as method calls
+/// All binary operators in Hoopoe are dispatched as method calls
 /// on the LHS value, following the stdlib operator interfaces.
 pub fn binary_op_method(op: BinaryOperator) -> &'static str {
 	match op {

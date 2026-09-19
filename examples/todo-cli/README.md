@@ -16,7 +16,7 @@ The focus here is the shape of a real CLI:
   explicitly, for example `Some(value = n)` and `Complete(id = n)`.
 
 ```sh
-nymph run
+hoopoe run
 # [x] #1 write the compiler
 ```
 

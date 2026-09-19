@@ -1,7 +1,7 @@
 # Formatting
 
-Nymph has one canonical source style. Formatter integrations use the reusable
-`nymph-format` library and produce the same result independently of the filesystem,
+Hoopoe has one canonical source style. Formatter integrations use the reusable
+`hoopoe-format` library and produce the same result independently of the filesystem,
 editor, or command-line environment.
 
 ## Layout

@@ -1,23 +1,23 @@
 # Getting started
 
-Nymph is a small, expression-oriented language that compiles to JavaScript. This page is a guided
+Hoopoe is a small, expression-oriented language that compiles to JavaScript. This page is a guided
 tour: each section adds one more piece, building toward a small program that ties several features
 together. For the full grammar and semantics behind any of it, the [Reference](../reference/) is
 the place to go next — this page links to it throughout.
 
 ## Your first function
 
-A Nymph program is a flat list of top-level declarations. The simplest is a function: a name, its
+A Hoopoe program is a flat list of top-level declarations. The simplest is a function: a name, its
 parameters, a return type, and a body that's a single expression.
 
-```nym
+```hoo
 func greet(name: string): string = "Hello, ${name}!"
 ```
 
 `${…}` inside a string is interpolation — exactly one complete expression goes between the braces.
 A body with more than one step is a block, whose last expression is the value the function returns:
 
-```nym
+```hoo
 func average_scaled(a: int, b: int, scale: int): float = {
   let sum = a + b
   let scaled = sum * scale
@@ -31,10 +31,10 @@ that can appear in a body — `if`/`match` as values, closures, and the full ope
 
 ## Immutable values
 
-Values and bindings in Nymph are immutable. Operations return replacements rather than changing
+Values and bindings in Hoopoe are immutable. Operations return replacements rather than changing
 existing values:
 
-```nym
+```hoo
 struct Counter(value: int)
 func increment(counter: Counter): Counter = Counter(value = counter.value + 1)
 func demo(): #(int, int) = {
@@ -47,7 +47,7 @@ func demo(): #(int, int) = {
 Repeated state uses an immutable state loop. Each `continue` installs fresh loop-carried values
 simultaneously:
 
-```nym
+```hoo
 func sum_to(limit: int): int = loop@sum (let next = 1, let total = 0) {
   if (next > limit) { break@sum total }
   continue(next = next + 1, total = total + next)
@@ -62,7 +62,7 @@ A `struct` groups fields under a name; construct one by calling it with named ar
 [Structs and enums](../reference/structs-and-enums) for field defaults, generics, and methods in
 depth.
 
-```nym
+```hoo
 struct Point(x: int, y: int)
 
 func manhattan(a: Point, b: Point): int = {
@@ -78,7 +78,7 @@ An `enum` is a fixed set of named variants, each optionally carrying its own fie
 destructures one back apart — see [Pattern matching](../reference/pattern-matching) for the full
 grammar (ranges, structs, lists, tuples, guards, and more).
 
-```nym
+```hoo
 enum Shape {
   Circle(radius: int),
   Square(side: int),
@@ -99,7 +99,7 @@ library ships as an always-available prelude — implement one for your own type
 operator syntax starts working for it. See [Operators](../reference/operators) for the complete
 list.
 
-```nym
+```hoo
 struct Vec2(x: int, y: int)
 
 impl Plus<Other = Vec2, Output = Vec2> for Vec2 {
@@ -115,13 +115,13 @@ A closure is a small anonymous function, `params -> body`; `|>` calls a function
 its left as the sole argument, and chains left to right. Both are covered in
 [Expressions](../reference/expressions#closures).
 
-```nym
+```hoo
 func double(x: int): int = x * 2
 func inc(x: int): int = x + 1
 func demo(): int = 10 |> double |> inc
 ```
 
-```nym
+```hoo
 func apply_twice(f: (int) -> int, x: int): int = f(f(x))
 func demo2(): int = apply_twice((x: int) -> x * 2, 3)
 ```
@@ -131,13 +131,13 @@ func demo2(): int = apply_twice((x: int) -> x * 2, 3)
 The `for (pat in src) { .. }` loop walks over a range, a list, or anything implementing one of the
 standard library's iteration interfaces:
 
-```nym
+```hoo
 func sum(): int = {
   (1..=4).iter().fold(0, $0 + $1)
 }
 ```
 
-```nym
+```hoo
 func sum_list(): int = {
   #[1, 2, 3, 4].iter().fold(0, $0 + $1)
 }
@@ -150,7 +150,7 @@ See [Iteration](../reference/iteration) for looping over your own types.
 A slightly bigger example, combining a struct with a method, an enum matched with a guard, and a
 generic bounded function — the same shape a real program's core logic tends to take:
 
-```nym
+```hoo
 interface Area { func area(): int }
 
 enum Shape { Circle(radius: int), Rectangle(w: int, h: int) }

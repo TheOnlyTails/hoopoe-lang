@@ -1,9 +1,9 @@
-# Embedded Nymph
+# Embedded Hoopoe
 
-```nym
+```hoo
 loop (let count = 0) { continue(count = count + 1) }
 ```
 
-~~~nymph title="destination"
+~~~hoopoe title="destination"
 echo Point(...base, x = 1)
 ~~~

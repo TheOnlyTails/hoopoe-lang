@@ -497,7 +497,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "nymph"
+name = "hoopoe"
 version = "0.1.0"
 dependencies = [
  "anyhow",

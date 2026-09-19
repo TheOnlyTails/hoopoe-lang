@@ -1,5 +1,5 @@
 use crate::document::Document;
-use nymph_compiler::ast::{
+use hoopoe_compiler::ast::{
 	Span, Spanned,
 	declaration::{Declaration, ImplMember, InterfaceElement, InterfaceMember, StructInnerMember},
 	expr::{Expr, MatchArm, Pattern, Statement, StringPart, StructPatternField},
@@ -671,8 +671,8 @@ impl SemanticTokenizer {
 			Expr::List(items) | Expr::Tuple(items) => {
 				for item in items {
 					match &item.0 {
-						nymph_compiler::ast::expr::ListItem::Expr(inner) => self.visit_expr(inner, document),
-						nymph_compiler::ast::expr::ListItem::Spread(inner) => {
+						hoopoe_compiler::ast::expr::ListItem::Expr(inner) => self.visit_expr(inner, document),
+						hoopoe_compiler::ast::expr::ListItem::Spread(inner) => {
 							if let Some(spread_span) = find_operator_between(
 								&self.content,
 								item.1.start,
@@ -689,11 +689,11 @@ impl SemanticTokenizer {
 			Expr::Map(entries) => {
 				for entry in entries {
 					match &entry.0 {
-						nymph_compiler::ast::expr::MapEntry::Expr(key, value) => {
+						hoopoe_compiler::ast::expr::MapEntry::Expr(key, value) => {
 							self.visit_expr(key, document);
 							self.visit_expr(value, document);
 						}
-						nymph_compiler::ast::expr::MapEntry::Spread(expr) => {
+						hoopoe_compiler::ast::expr::MapEntry::Spread(expr) => {
 							if let Some(spread_span) = find_operator_between(
 								&self.content,
 								entry.1.start,
@@ -911,27 +911,27 @@ impl SemanticTokenizer {
 			Pattern::List(items) | Pattern::Tuple(items) => {
 				for item in items {
 					match &item.0 {
-						nymph_compiler::ast::expr::ListPatternEntry::Item(pattern) => {
+						hoopoe_compiler::ast::expr::ListPatternEntry::Item(pattern) => {
 							self.visit_pattern(pattern, binding_type, modifiers.clone(), document);
 						}
-						nymph_compiler::ast::expr::ListPatternEntry::Rest(Some(rest)) => {
+						hoopoe_compiler::ast::expr::ListPatternEntry::Rest(Some(rest)) => {
 							self.add_ident(rest.1, &rest.0, binding_type, modifiers.clone());
 						}
-						nymph_compiler::ast::expr::ListPatternEntry::Rest(None) => {}
+						hoopoe_compiler::ast::expr::ListPatternEntry::Rest(None) => {}
 					}
 				}
 			}
 			Pattern::Map(entries) => {
 				for entry in entries {
 					match &entry.0 {
-						nymph_compiler::ast::expr::MapPatternEntry::Entry(key, value) => {
+						hoopoe_compiler::ast::expr::MapPatternEntry::Entry(key, value) => {
 							self.visit_pattern(key, binding_type, modifiers.clone(), document);
 							self.visit_pattern(value, binding_type, modifiers.clone(), document);
 						}
-						nymph_compiler::ast::expr::MapPatternEntry::Rest(Some(rest)) => {
+						hoopoe_compiler::ast::expr::MapPatternEntry::Rest(Some(rest)) => {
 							self.add_ident(rest.1, &rest.0, binding_type, modifiers.clone());
 						}
-						nymph_compiler::ast::expr::MapPatternEntry::Rest(None) => {}
+						hoopoe_compiler::ast::expr::MapPatternEntry::Rest(None) => {}
 					}
 				}
 			}
@@ -964,29 +964,29 @@ impl SemanticTokenizer {
 
 	fn visit_range_expr(
 		&mut self,
-		range: &nymph_compiler::ast::expr::RangeKind,
+		range: &hoopoe_compiler::ast::expr::RangeKind,
 		document: &Document,
 	) {
 		match range {
-			nymph_compiler::ast::expr::RangeKind::From(expr) => {
+			hoopoe_compiler::ast::expr::RangeKind::From(expr) => {
 				if let Some(operator_span) = find_operator_before(&self.content, expr.1.start, &["..<"]) {
 					self.add_operator_span(operator_span);
 				}
 				self.visit_expr(expr, document);
 			}
-			nymph_compiler::ast::expr::RangeKind::To(expr) => {
+			hoopoe_compiler::ast::expr::RangeKind::To(expr) => {
 				if let Some(operator_span) = find_operator_before(&self.content, expr.1.start, &["..<"]) {
 					self.add_operator_span(operator_span);
 				}
 				self.visit_expr(expr, document);
 			}
-			nymph_compiler::ast::expr::RangeKind::ToInclusive(expr) => {
+			hoopoe_compiler::ast::expr::RangeKind::ToInclusive(expr) => {
 				if let Some(operator_span) = find_operator_before(&self.content, expr.1.start, &["..="]) {
 					self.add_operator_span(operator_span);
 				}
 				self.visit_expr(expr, document);
 			}
-			nymph_compiler::ast::expr::RangeKind::Exclusive { min, max } => {
+			hoopoe_compiler::ast::expr::RangeKind::Exclusive { min, max } => {
 				self.visit_expr(min, document);
 				if let Some(operator_span) =
 					find_operator_between(&self.content, min.1.end, max.1.start, &["..<"])
@@ -995,7 +995,7 @@ impl SemanticTokenizer {
 				}
 				self.visit_expr(max, document);
 			}
-			nymph_compiler::ast::expr::RangeKind::Inclusive { min, max } => {
+			hoopoe_compiler::ast::expr::RangeKind::Inclusive { min, max } => {
 				self.visit_expr(min, document);
 				if let Some(operator_span) =
 					find_operator_between(&self.content, min.1.end, max.1.start, &["..="])
@@ -1009,24 +1009,24 @@ impl SemanticTokenizer {
 
 	fn visit_range_pattern(
 		&mut self,
-		range: &nymph_compiler::ast::expr::RangePatternKind,
+		range: &hoopoe_compiler::ast::expr::RangePatternKind,
 		document: &Document,
 	) {
 		match range {
-			nymph_compiler::ast::expr::RangePatternKind::ExclusiveMin(pattern) => {
+			hoopoe_compiler::ast::expr::RangePatternKind::ExclusiveMin(pattern) => {
 				if let Some(operator_span) = find_operator_after(&self.content, pattern.1.end, &["..<"]) {
 					self.add_operator_span(operator_span);
 				}
 				self.visit_pattern(pattern, TokenType::Variable, vec![], document);
 			}
-			nymph_compiler::ast::expr::RangePatternKind::InclusiveMax(pattern) => {
+			hoopoe_compiler::ast::expr::RangePatternKind::InclusiveMax(pattern) => {
 				if let Some(operator_span) = find_operator_before(&self.content, pattern.1.start, &["..="])
 				{
 					self.add_operator_span(operator_span);
 				}
 				self.visit_pattern(pattern, TokenType::Variable, vec![], document);
 			}
-			nymph_compiler::ast::expr::RangePatternKind::ExclusiveBoth { min, max } => {
+			hoopoe_compiler::ast::expr::RangePatternKind::ExclusiveBoth { min, max } => {
 				self.visit_pattern(min, TokenType::Variable, vec![], document);
 				if let Some(operator_span) =
 					find_operator_between(&self.content, min.1.end, max.1.start, &["..<"])
@@ -1035,7 +1035,7 @@ impl SemanticTokenizer {
 				}
 				self.visit_pattern(max, TokenType::Variable, vec![], document);
 			}
-			nymph_compiler::ast::expr::RangePatternKind::InclusiveBoth { min, max } => {
+			hoopoe_compiler::ast::expr::RangePatternKind::InclusiveBoth { min, max } => {
 				self.visit_pattern(min, TokenType::Variable, vec![], document);
 				if let Some(operator_span) =
 					find_operator_between(&self.content, min.1.end, max.1.start, &["..="])
@@ -1445,7 +1445,7 @@ mod tests {
 	#[test]
 	fn test_operator_token_covers_only_arrow_glyphs() {
 		let doc = Document::new(
-			"file:///test.nym".to_string(),
+			"file:///test.hoo".to_string(),
 			"let f = (value: int) -> value\n".to_string(),
 		);
 		let mut tokenizer = SemanticTokenizer::new();
@@ -1472,7 +1472,7 @@ mod tests {
 	#[test]
 	fn test_operator_token_covers_only_spread_glyphs() {
 		let doc = Document::new(
-			"file:///test.nym".to_string(),
+			"file:///test.hoo".to_string(),
 			"func main() -> call(...items)\n".to_string(),
 		);
 		let mut tokenizer = SemanticTokenizer::new();
@@ -1496,7 +1496,7 @@ mod tests {
 	#[test]
 	fn test_operator_token_does_not_cover_whole_binary_expression() {
 		let doc = Document::new(
-			"file:///test.nym".to_string(),
+			"file:///test.hoo".to_string(),
 			"func main() -> 1 + 2\n".to_string(),
 		);
 		let mut tokenizer = SemanticTokenizer::new();

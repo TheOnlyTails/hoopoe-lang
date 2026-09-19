@@ -1,4 +1,4 @@
-// Prototype for https://github.com/TheOnlyTails/nymph_lang/issues/89.
+// Prototype for https://github.com/TheOnlyTails/hoopoe_lang/issues/89.
 //
 // This is deliberately runtime-shaped JavaScript, not destination compiler code.
 // Each `activation` below stands in for a generated defunctionalized callable

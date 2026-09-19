@@ -1,4 +1,4 @@
-import { nymphProtocolDisplay } from "std/box";
+import { hoopoeProtocolDisplay } from "std/box";
 
-export const print = (x: unknown) => process.stdout.write(nymphProtocolDisplay(x).v);
-export const println = (x: unknown) => console.log(nymphProtocolDisplay(x).v);
+export const print = (x: unknown) => process.stdout.write(hoopoeProtocolDisplay(x).v);
+export const println = (x: unknown) => console.log(hoopoeProtocolDisplay(x).v);

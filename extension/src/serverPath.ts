@@ -2,12 +2,12 @@ import * as fs from "fs";
 import * as path from "path";
 
 const targets: Record<string, { target: string; relativePath: string }> = {
-	"linux-x64": { target: "linux-x64", relativePath: path.join("server", "nymph-lsp") },
-	"linux-arm64": { target: "linux-arm64", relativePath: path.join("server", "nymph-lsp") },
-	"win32-x64": { target: "win32-x64", relativePath: path.join("server", "nymph-lsp.exe") },
-	"win32-arm64": { target: "win32-arm64", relativePath: path.join("server", "nymph-lsp.exe") },
-	"darwin-x64": { target: "darwin-x64", relativePath: path.join("server", "nymph-lsp") },
-	"darwin-arm64": { target: "darwin-arm64", relativePath: path.join("server", "nymph-lsp") },
+	"linux-x64": { target: "linux-x64", relativePath: path.join("server", "hoopoe-lsp") },
+	"linux-arm64": { target: "linux-arm64", relativePath: path.join("server", "hoopoe-lsp") },
+	"win32-x64": { target: "win32-x64", relativePath: path.join("server", "hoopoe-lsp.exe") },
+	"win32-arm64": { target: "win32-arm64", relativePath: path.join("server", "hoopoe-lsp.exe") },
+	"darwin-x64": { target: "darwin-x64", relativePath: path.join("server", "hoopoe-lsp") },
+	"darwin-arm64": { target: "darwin-arm64", relativePath: path.join("server", "hoopoe-lsp") },
 };
 
 export function serverPayload(platform: string, arch: string) {
@@ -15,7 +15,7 @@ export function serverPayload(platform: string, arch: string) {
 	const payload = targets[host];
 	if (!payload)
 		throw new Error(
-			`Unsupported Nymph LSP host ${host}. Install one of the six target-specific Nymph VSIX packages.`,
+			`Unsupported Hoopoe LSP host ${host}. Install one of the six target-specific Hoopoe VSIX packages.`,
 		);
 	return payload;
 }
@@ -39,7 +39,7 @@ export function resolveServerPath(options: {
 function validateServer(server: string, platform: string, description: string) {
 	if (!fs.existsSync(server)) {
 		throw new Error(
-			`Nymph LSP ${description} is missing at ${server}. Reinstall the matching target-specific VSIX.`,
+			`Hoopoe LSP ${description} is missing at ${server}. Reinstall the matching target-specific VSIX.`,
 		);
 	}
 	if (platform !== "win32") {
@@ -47,7 +47,7 @@ function validateServer(server: string, platform: string, description: string) {
 			fs.accessSync(server, fs.constants.X_OK);
 		} catch {
 			throw new Error(
-				`Nymph LSP payload at ${server} is not executable. Reinstall the extension or run chmod +x on a development override.`,
+				`Hoopoe LSP payload at ${server} is not executable. Reinstall the extension or run chmod +x on a development override.`,
 			);
 		}
 	}

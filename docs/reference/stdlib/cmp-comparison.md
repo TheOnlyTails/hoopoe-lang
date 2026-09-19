@@ -1,12 +1,12 @@
 # Ambient comparison APIs
 
-`Comparable` and `Order` are part of Nymph's **ambient core**: they are available in every module
+`Comparable` and `Order` are part of Hoopoe's **ambient core**: they are available in every module
 with no `import`, which is why every sample below uses them directly. See
 [Operators](../operators) for the complete operator interface set.
 
 ## `Order`
 
-```nymph
+```hoopoe
 enum Order {
   LessThan,
   Equal,
@@ -18,7 +18,7 @@ The three-way result of a comparison — what `compare_to` below returns.
 
 ## `Comparable`
 
-```nymph
+```hoopoe
 interface Comparable<Other> {
   func compare_to(other: Other): Order
 
@@ -32,7 +32,7 @@ interface Comparable<Other> {
 Implementing `compare_to` alone is enough: `<`, `<=`, `>`, and `>=` are default methods built on
 top of it, so all four operators start working the moment `compare_to` exists.
 
-```nym
+```hoo
 struct Version(major: int, minor: int)
 impl Comparable<Other = Version> for Version {
   func compare_to(other: Version): Order =

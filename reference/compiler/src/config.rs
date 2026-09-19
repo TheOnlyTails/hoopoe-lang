@@ -16,7 +16,7 @@ use crate::db::{Db, ProjectConfig as CompilerProjectConfig};
 pub struct ProjectConfig {
 	name: String,
 	version: Version,
-	nymph_version: VersionReq,
+	hoopoe_version: VersionReq,
 	description: Option<String>,
 	license: Option<String>,
 	author: Vec<Author>,
@@ -55,7 +55,7 @@ struct PreludeConfig {
 
 impl PreludeConfig {
 	fn load(project_root: &Path) -> anyhow::Result<Option<Self>> {
-		let path = project_root.join("nymph.toml");
+		let path = project_root.join("hoopoe.toml");
 		if !path.exists() {
 			return Ok(None);
 		}

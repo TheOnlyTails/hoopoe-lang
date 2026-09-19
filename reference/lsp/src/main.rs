@@ -1,4 +1,4 @@
-use nymph_lsp::NymphLanguageServer;
+use hoopoe_lsp::HoopoeLanguageServer;
 use smol::Unblock;
 use tower_lsp::{Client, LspService, Server};
 
@@ -10,12 +10,12 @@ fn main() {
 			.with_writer(std::io::stderr)
 			.init();
 
-		eprintln!("Nymph Language Server starting...");
+		eprintln!("Hoopoe Language Server starting...");
 
 		let stdin = Unblock::new(std::io::stdin());
 		let stdout = Unblock::new(std::io::stdout());
 
-		let (service, socket) = LspService::new(|client: Client| NymphLanguageServer::new(client));
+		let (service, socket) = LspService::new(|client: Client| HoopoeLanguageServer::new(client));
 		let server = Server::new(stdin, stdout, socket);
 
 		server.serve(service).await;

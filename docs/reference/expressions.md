@@ -1,6 +1,6 @@
 # Expressions
 
-Nymph is expression-oriented: `if`, `match`, state loops, `for`, and blocks all _produce_ a value,
+Hoopoe is expression-oriented: `if`, `match`, state loops, `for`, and blocks all _produce_ a value,
 not just literals and operator chains. The only things that are _not_ expressions are a bare `let`
 binding and the handful of top-level [declarations](./declarations).
 
@@ -38,7 +38,7 @@ prelude, so user types can overload them by implementing the matching interface 
 they always compare by native identity/structural equality and never dispatch anywhere, even for a
 type that implements `Equals`.
 
-```nym
+```hoo
 func polynomial(x: int): int = x ** 3u + 2 * x ** 2u - x + 7
 ```
 
@@ -53,7 +53,7 @@ A call is a callee expression followed by parenthesized, comma-separated argumen
 (named arguments are for [struct and enum construction](./structs-and-enums) instead, which is
 parsed the same way but resolved by field name).
 
-```nym
+```hoo
 func add(a: int, b: int): int = a + b
 func demo(): int = add(1, 2)
 ```
@@ -61,7 +61,7 @@ func demo(): int = add(1, 2)
 A `...` prefix on a call argument spreads an iterable into the call. It's how you pass a list to a
 [spread parameter](./functions#spread-parameters):
 
-```nym
+```hoo
 func sum(...xs: #[int]): int = {
   xs.iter().fold(0, (total, x) -> total + x)
 }
@@ -81,7 +81,7 @@ and spread call arguments, and works anywhere direct expansion is accepted, incl
 an interpolation or splice inside a `\(...)` token literal. It is limited to one named
 function; use the long form for member calls or another callee expression.
 
-```nym
+```hoo
 import std/meta as meta
 
 const func make_answer(value: int): meta.Tokens =
@@ -95,7 +95,7 @@ $make_answer(42)
 `receiver.method(args…)` resolves `method` against the receiver's type: an inherent method, an
 interface method available through a bound, or one materialized through an `impl … for` block.
 
-```nym
+```hoo
 struct Counter(n: int) {
   func peek(): int = this.n
 }
@@ -112,7 +112,7 @@ element. Other key types can be supported with additional `Index` implementation
 must be a literal integer (its element types can differ per position, so the checker needs a constant
 to know which one you get back).
 
-```nym
+```hoo
 func first_of(xs: #[int]): int = xs[0]
 func last_of(xs: #[int]): int = xs[-1]
 func swap_sum(t: #(int, int)): int = t[1] + t[0]
@@ -122,7 +122,7 @@ func lookup(scores: #{int: int}, level: int): int = scores[level]
 Collections are persistent. Use `replaced` to produce a list with a new value at an index while
 preserving the original list:
 
-```nym
+```hoo
 func set(xs: #[int], i: uint, v: int): #[int] = xs.replaced(i, v)
 ```
 
@@ -132,7 +132,7 @@ func set(xs: #[int], i: uint, v: int): #[int] = xs.replaced(i, v)
 inclusive ranges require an upper bound. See [Ranges](./literals#ranges) for the full syntax and
 [Iteration](./iteration#ranges) for using one as a `for` source.
 
-```nym
+```hoo
 func sum_inclusive(n: int): int = {
   (1..=n).iter().fold(0, (total, i) -> total + i)
 }
@@ -144,7 +144,7 @@ Both branches of an `if`/`else` — and every arm of a `match` — must agree on
 result is used as a value, since the whole construct itself has a type. See
 [Pattern matching](./pattern-matching) for everything `match` can destructure.
 
-```nym
+```hoo
 func clamp(x: int, lo: int, hi: int): int =
   if (x < lo) { lo }
   else if (x > hi) { hi }
@@ -162,7 +162,7 @@ func vowel_index(c: char): int = match (c) {
 
 An `if` with no `else`, used where no value is needed, is fine in statement position:
 
-```nym
+```hoo
 func demo(n: int): int = {
   let x = if (n > 0) { n } else { 0 }
   x
@@ -175,7 +175,7 @@ func demo(n: int): int = {
 if the block ends in a statement, not an expression). Blocks are how `func` bodies, conditionals,
 loops, and match arm bodies all get more than one step.
 
-```nym
+```hoo
 func average_scaled(a: int, b: int, scale: int): float = {
   let sum = a + b
   let scaled = sum * scale
@@ -188,11 +188,11 @@ func average_scaled(a: int, b: int, scale: int): float = {
 A closure is an anonymous function value: `params -> body`. A single untyped parameter can skip
 the parentheses; anything else — zero params, multiple params, or a typed param — needs them.
 
-```nym
+```hoo
 func doubled(n: int): int = (10 |> x -> x * n)
 ```
 
-```nym
+```hoo
 func apply_twice(f: (int) -> int, x: int): int = f(f(x))
 func demo(): int = apply_twice((x: int) -> x * 2, 3)
 ```
@@ -200,7 +200,7 @@ func demo(): int = apply_twice((x: int) -> x * 2, 3)
 A closure captures immutable values from its enclosing scope. A closure built inside a method body
 keeps reading the original receiver's fields even after the method returns.
 
-```nym
+```hoo
 func demo(): int = {
   let x = 1
   let bump = () -> x + 1
@@ -220,12 +220,12 @@ entirely and refer to its arguments positionally: `$0` is the first, `$1` the se
 and so on, with a bare `$` as a shorthand for `$0`. An expression that mentions any
 `$N` _implicitly becomes a closure_ — no `->` needed.
 
-```nym
+```hoo
 func apply(f: (int) -> int, x: int): int = f(x)
 func demo(): int = apply($ + 1, 5)
 ```
 
-```nym
+```hoo
 func combine(f: (int, int) -> int): int = f(7, 2)
 func demo(): int = combine($0 - $1)
 ```
@@ -233,7 +233,7 @@ func demo(): int = combine($0 - $1)
 They read especially well as the argument to a transforming method — `o.map($ + 1)`
 is exactly `o.map((x: int) -> x + 1)`:
 
-```nym
+```hoo
 func inc(o: Option<int>): Option<int> = o.map($ + 1)
 func evens(o: Option<int>): Option<int> = o.filter($ % 2 == 0)
 ```
@@ -252,7 +252,7 @@ spot, so a `$` always resolves to the nearest such boundary.
 `a |> f` calls `f` with `a` as its sole argument — `f` can be any single-argument callable: a named
 function or a closure. Chained pipes are left-associative, so `x |> f |> g` is `g(f(x))`.
 
-```nym
+```hoo
 func double(x: int): int = x * 2
 func inc(x: int): int = x + 1
 func demo(): int = 10 |> double |> inc
@@ -262,14 +262,14 @@ The right-hand side can also be a closure — including a parenthesized
 [anonymous-parameter](#anonymous-closure-parameters) one, handy for a one-off step
 that doesn't deserve a name:
 
-```nym
+```hoo
 func demo(): int = 10 |> ($ * 2) |> ($ + 1)
 ```
 
 ## `as` and `is`
 
 `value as Type` casts `value` to `Type`. Between the built-in scalar types (`int`, `uint`, `float`,
-`char`) it runs Nymph's own defined conversion (see the [Cast semantics](./types) built into each
+`char`) it runs Hoopoe's own defined conversion (see the [Cast semantics](./types) built into each
 pair) and always produces the canonical boxed representation of the destination type, including
 identity and widening casts. Numeric-to-`char` casts truncate floats toward zero, then require a
 Unicode scalar value (`0..=0x10FFFF`, excluding `0xD800..=0xDFFF`). Invalid literal casts are
@@ -280,11 +280,11 @@ source exactly once. For a user type, it dispatches to an implementation of the 
 without a full `match` — it accepts the same pattern shapes a match arm does, just without a guard
 (guards are match-arm syntax, not part of a pattern).
 
-```nym
+```hoo
 func f(n: int): boolean = n as float > 0.0
 ```
 
-```nym
+```hoo
 enum Shape { Circle(radius: int), Square(side: int) }
 func is_big_circle(s: Shape): boolean = s is Circle(radius = 20)
 ```
@@ -295,7 +295,7 @@ func is_big_circle(s: Shape): boolean = s is Circle(radius = 20)
 `contains`/`not_contains` methods — note the receiver is the _collection_, the right-hand operand,
 not the left-hand `item`.
 
-```nym
+```hoo
 struct Bag(n: int)
 impl Contains<Item = int> for Bag {
   func contains(item: int): boolean = item == this.n
@@ -308,12 +308,12 @@ func lacks(b: Bag, x: int): boolean = x !in b
 ## `??` (Unwrap)
 
 `a ?? fallback` dispatches to the ambient `Unwrap<Output>` interface's `unwrap` method, called
-eagerly as `a.unwrap(fallback)`. Nymph has no null/undefined-style optional representation, so
+eagerly as `a.unwrap(fallback)`. Hoopoe has no null/undefined-style optional representation, so
 unlike a nullish-coalescing operator in other languages, this is always a plain, unconditional call
 — nothing here short-circuits at the language level; whatever short-circuiting behavior exists is
 up to `unwrap`'s own body.
 
-```nym
+```hoo
 struct MaybeInt(present: boolean, value: int)
 impl Unwrap<Output = int> for MaybeInt {
   func unwrap(default: int): int = if (this.present) { this.value } else { default }
@@ -328,7 +328,7 @@ Both are expressions typed [`never`](./types#basic-types) — the type of an exp
 never produces a value because control leaves right there — so they can appear anywhere a value of
 any type is expected, including as an operand.
 
-```nym
+```hoo
 func classify(n: int): string = {
   if (n < 0) { break@classify "negative" }
   if (n == 0) { break@classify "zero" }
@@ -336,7 +336,7 @@ func classify(n: int): string = {
 }
 ```
 
-```nym
+```hoo
 func first_positive(xs: #[int]): int = {
   let found = for@search (i in 0u..xs.length()) {
     if (xs[i as int] > 0) { break@search i }

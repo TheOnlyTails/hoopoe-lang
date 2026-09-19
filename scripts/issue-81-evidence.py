@@ -34,7 +34,7 @@ def run(command: list[str], *, env: dict[str, str] | None = None) -> subprocess.
 
 def build() -> None:
 	subprocess.run(
-		["cargo", "build", "--release", "-p", "nymph-compiler", "--features", "test-support", "--bin", "issue_81_evidence"],
+		["cargo", "build", "--release", "-p", "hoopoe-compiler", "--features", "test-support", "--bin", "issue_81_evidence"],
 		cwd=ROOT,
 		check=True,
 	)
@@ -80,7 +80,7 @@ def matrix(repeats: int) -> None:
 	DATA.mkdir(parents=True, exist_ok=True)
 	(DATA / "environment.json").write_text(json.dumps(environment(), indent=2, sort_keys=True) + "\n")
 	commands = [
-		"CARGO_INCREMENTAL=0 cargo build --release -p nymph-compiler --features test-support --bin issue_81_evidence",
+		"CARGO_INCREMENTAL=0 cargo build --release -p hoopoe-compiler --features test-support --bin issue_81_evidence",
 		"RAYON_NUM_THREADS={1,2,4,8} /usr/bin/time -f '%U %S %e %M' target/release/issue_81_evidence sample {single,wide,deep,mixed} {diagnostics,compile} {uninstrumented,instrumented}",
 		f"python3 scripts/issue-81-evidence.py matrix --repeats {repeats}",
 	]

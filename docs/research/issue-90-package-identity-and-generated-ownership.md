@@ -6,35 +6,35 @@ implement package resolution, field access rules, enum embedding, or derived imp
 
 ## Current seams and gaps
 
-- `nymph-project` parses package names, versions, dependency selectors, and source roots, but
-  deliberately owns no compiler identity or Salsa state (`crates/nymph-project/src/lib.rs:1-63`,
+- `hoopoe-project` parses package names, versions, dependency selectors, and source roots, but
+  deliberately owns no compiler identity or Salsa state (`crates/hoopoe-project/src/lib.rs:1-63`,
   `161-276`).
 - `CompilerSession` currently keys source inputs by caller-provided `(ProjectId, ModulePath)`.
   LSP project IDs are filesystem-derived while one-shot compilation uses a constant facade ID, so
   `ProjectId` is a lifecycle/isolation key rather than canonical package membership
-  (`crates/nymph-compiler/src/project/session.rs:16-79`, `121-206`;
-  `crates/nymph-lsp/src/compiler_state.rs:1572-1601`;
-  `crates/nymph-compiler/src/project/mod.rs:237-250`).
+  (`crates/hoopoe-compiler/src/project/session.rs:16-79`, `121-206`;
+  `crates/hoopoe-lsp/src/compiler_state.rs:1572-1601`;
+  `crates/hoopoe-compiler/src/project/mod.rs:237-250`).
 - Semantic `ModuleIdentity` is embedded in every stable `DefinitionId`; complete and recovered module
   interfaces hash that identity, their field shapes, and implementation shapes. This is the existing
-  propagation and incremental-fingerprint seam (`crates/nymph-sema/src/identity.rs:7-23`, `290-421`;
-  `crates/nymph-sema/src/interface.rs:381-405`, `457-753`).
+  propagation and incremental-fingerprint seam (`crates/hoopoe-sema/src/identity.rs:7-23`, `290-421`;
+  `crates/hoopoe-sema/src/interface.rs:381-405`, `457-753`).
 - `internal` is parsed and retained in field/interface shapes, but current interface/environment
   filtering treats every visibility except `private` as generally importable. Package-sensitive
-  availability is not implemented (`crates/nymph-ast/src/decl.rs:102-106`;
-  `crates/nymph-sema/src/interface_extract.rs:178-180`;
-  `crates/nymph-sema/src/environment.rs:836-901`).
+  availability is not implemented (`crates/hoopoe-ast/src/decl.rs:102-106`;
+  `crates/hoopoe-sema/src/interface_extract.rs:178-180`;
+  `crates/hoopoe-sema/src/environment.rs:836-901`).
 - Import resolution distinguishes project-local modules and importable `std`, but rejects other
   package roots. The canonical graph rejects cycles and checks each module from dependency interfaces
-  rather than dependency bodies (`crates/nymph-compiler/src/project/resolve.rs:27-127`;
-  `crates/nymph-compiler/src/project/queries.rs:2372-2665`, `2779-2965`).
+  rather than dependency bodies (`crates/hoopoe-compiler/src/project/resolve.rs:27-127`;
+  `crates/hoopoe-compiler/src/project/queries.rs:2372-2665`, `2779-2965`).
 - Implementations already have one stable owning module, are carried by that module's interface, and
   are collected from dependency-interface closures. Runtime/link planning resolves exact stable
-  definitions and module owners (`crates/nymph-sema/src/interface.rs:477-617`;
-  `crates/nymph-sema/src/environment.rs:134-255`;
-  `crates/nymph-compiler/src/project/link_plan.rs:31-281`).
+  definitions and module owners (`crates/hoopoe-sema/src/interface.rs:477-617`;
+  `crates/hoopoe-sema/src/environment.rs:134-255`;
+  `crates/hoopoe-compiler/src/project/link_plan.rs:31-281`).
 - The standard library's current `Option`/`Result` cross-API uses a third module specifically to avoid
-  a mutual import cycle (`stdlib/src/convert.nym:1-31`). Generated embedding conversions need a
+  a mutual import cycle (`stdlib/src/convert.hoo:1-31`). Generated embedding conversions need a
   directional canonical owner rather than duplicated source/destination ownership.
 
 ## Resolution
