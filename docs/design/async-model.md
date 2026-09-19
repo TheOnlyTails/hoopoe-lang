@@ -300,8 +300,8 @@ task context, then applies the same policy to synchronous and task-shaped roots:
   `error: program defected: <summary>\n`, and exits 101. Renderer failure falls back to
   `error: program defected\n`.
 
-Application `None` and `Error` values never become cancellation or defects. Ordinary `hoopoe build`
-output remains an inert importable ES module; the launcher policy belongs to `hoopoe run` and future
+Application `None` and `Error` values never become cancellation or defects. Ordinary `hoo build`
+output remains an inert importable ES module; the launcher policy belongs to `hoo run` and future
 explicitly runnable Node artifacts. Task machinery continues to distinguish produced values,
 cancellation, and defects without interpreting application `Option` or `Result` values. The complete
 contract and implementation evidence are recorded in

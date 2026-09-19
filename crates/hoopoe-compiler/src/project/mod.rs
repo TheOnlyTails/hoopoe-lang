@@ -365,7 +365,7 @@ pub fn check_project_with_embedded_std_and_options(
 
 /// Library-mode counterpart of [`check_project`]: `entry` is not required to
 /// declare a `main` — mirrors [`crate::check`] one level up. Used to check a
-/// project graph rooted at a non-entry module (e.g. `hoopoe build` on a file
+/// project graph rooted at a non-entry module (e.g. `hoo build` on a file
 /// that isn't the project's `main.hoo`). See [`check_project_library_with_std`]
 /// for a caller with real `import std/…` support to offer.
 pub fn check_project_library(

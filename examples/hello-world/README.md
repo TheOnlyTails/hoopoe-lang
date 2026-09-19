@@ -16,6 +16,6 @@ calls. `println` comes from `std/io`; string arguments are printed as-is.
 **Status:** ✅ Runs today.
 
 ```sh
-hoopoe run
+hoo run
 # Hello, world!
 ```

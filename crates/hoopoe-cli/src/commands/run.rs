@@ -6,7 +6,7 @@ use crate::HoopoeCommand;
 use crate::compile_guard::{CompileOutcome, compile_guarded, unsupported_feature_message};
 use crate::project_support::{ManifestSelection, ProjectOperation};
 
-/// `hoopoe run [file]` — compile a Hoopoe source file and execute it under
+/// `hoo run [file]` — compile a Hoopoe source file and execute it under
 /// `node`, forwarding stdout/stderr live and propagating node's exit status.
 /// With no file, the nearest project's manifest `build.entry` is used.
 ///
@@ -23,11 +23,11 @@ use crate::project_support::{ManifestSelection, ProjectOperation};
 /// pre-compile scan. There is no way to run something other than `main` — if
 /// a program needs to do something, that's what its `main` is for.
 ///
-/// `hoopoe run -e "<expr>"` instead evaluates a single inline expression and
+/// `hoo run -e "<expr>"` instead evaluates a single inline expression and
 /// prints its value: the expression is wrapped in a throwaway nullary function
 /// compiled as a *library* module (no `main` required), and the emitted JS is
 /// rendered through Hoopoe's `Display` protocol, so a quick
-/// `hoopoe run -e "1 + 2"` prints `3`.
+/// `hoo run -e "1 + 2"` prints `3`.
 /// This is the manual-testing counterpart to a full REPL.
 ///
 /// A compile error, or the compiler backend panicking on an unsupported

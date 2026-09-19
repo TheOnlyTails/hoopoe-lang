@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use crate::HoopoeCommand;
 use crate::project_support::{ManifestSelection, ProjectOperation};
 
-/// `hoopoe check [file]` — parse and type-check a Hoopoe source file. Prints
+/// `hoo check [file]` — parse and type-check a Hoopoe source file. Prints
 /// "ok" and exits 0 when there are no diagnostics; otherwise renders every
 /// diagnostic (severity, `file:line:col`, message, source excerpt) to stderr
 /// and exits nonzero only if at least one diagnostic is an error (warnings

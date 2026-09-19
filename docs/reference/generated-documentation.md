@@ -1,10 +1,10 @@
 # Generated API documentation
 
-`hoopoe doc` checks a project and writes a browsable, static HTML site for every
+`hoo doc` checks a project and writes a browsable, static HTML site for every
 project module reachable from the manifest's `build.entry` module.
 
 ```sh
-hoopoe doc
+hoo doc
 ```
 
 The default output directory is `target/hoopoe/doc` under the project root. Open
@@ -16,21 +16,21 @@ server or JavaScript.
 Use `--output` to replace a different directory:
 
 ```sh
-hoopoe doc --output build/api
+hoo doc --output build/api
 ```
 
 Private declarations, fields, and members are omitted by default. Include them
 when generating internal documentation:
 
 ```sh
-hoopoe doc --document-private-items
+hoo doc --document-private-items
 ```
 
 Pass `--open` to ask the system browser to open the generated index after the
 new site has been published successfully:
 
 ```sh
-hoopoe doc --open
+hoo doc --open
 ```
 
 Like other project commands, `doc` accepts the global `--manifest <PATH>` option

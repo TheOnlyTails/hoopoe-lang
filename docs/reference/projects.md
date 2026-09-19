@@ -9,7 +9,7 @@ The directory containing the manifest is the project root.
 Create a binary package at a new destination with:
 
 ```sh
-hoopoe new hello-world
+hoo new hello-world
 ```
 
 The destination basename becomes the package name. Names must start with a
@@ -40,7 +40,7 @@ func main(): void = {}
 Pass `--lib` to generate `src/lib.hoo` instead:
 
 ```sh
-hoopoe new hello-lib --lib
+hoo new hello-lib --lib
 ```
 
 ```text
@@ -59,9 +59,9 @@ Git is initialized by default, but no initial commit is created. Use
 noninteractive and staged before publication, so a missing or failing Git
 executable and other initialization errors do not leave a partial destination.
 
-The generated binary can be checked from its root with `hoopoe check`. Until
+The generated binary can be checked from its root with `hoo check`. Until
 library-target metadata is part of the manifest schema, check a generated
-library explicitly with `hoopoe check src/lib.hoo`.
+library explicitly with `hoo check src/lib.hoo`.
 
 Discovery has three outcomes: a valid manifest selects project mode; finding
 no manifest in the search chain permits loose-file mode; and finding a
@@ -119,14 +119,14 @@ artifact, and executes neither the selected module nor Node.
 
 ## Inspecting fully expanded source
 
-`hoopoe expand <module-path>` prints one project's fully expanded runtime module
+`hoo expand <module-path>` prints one project's fully expanded runtime module
 as formatted Hoopoe. The module path is relative to `package.src`, uses `/` between
 components, and omits both the `.hoo` suffix and import prefixes. For example:
 
 ```sh
-hoopoe expand main
-hoopoe expand network/http
-hoopoe --manifest ../app/hoopoe.toml expand generated/routes
+hoo expand main
+hoo expand network/http
+hoo --manifest ../app/hoopoe.toml expand generated/routes
 ```
 
 Forms such as `@/network/http`, `./network/http`, `network/http.hoo`, absolute
@@ -155,8 +155,8 @@ Task<Result<void, E>>
 ```
 
 `E` must implement `Display`. The compiler chooses the adapter from the resolved static type; the
-runtime never guesses by inspecting a value. `hoopoe build` produces an inert importable ES module.
-Only `hoopoe run` (and future explicitly runnable Node artifacts) adds the Node launcher.
+runtime never guesses by inspecting a value. `hoo build` produces an inert importable ES module.
+Only `hoo run` (and future explicitly runnable Node artifacts) adds the Node launcher.
 
 The launcher writes no successful root value. `void`, `Some(void)`, and `Ok(void)` exit 0; `None`
 writes `error: main returned None` and exits 1; `Error(error)` writes `error: ` followed by
@@ -191,17 +191,17 @@ intentional program output.
 From a project directory, all three commands select `build.entry`:
 
 ```sh
-hoopoe check
-hoopoe build
-hoopoe run
+hoo check
+hoo build
+hoo run
 ```
 
 An explicit project file or a standalone loose file remains supported:
 
 ```sh
-hoopoe check src/network/http.hoo
-hoopoe build scratch.hoo
-hoopoe run script.hoo
+hoo check src/network/http.hoo
+hoo build scratch.hoo
+hoo run script.hoo
 ```
 
 Because manifest fields are based on the selected manifest's directory, an
@@ -209,9 +209,9 @@ explicit manifest works from anywhere. As a global option, it may appear
 before or after the subcommand:
 
 ```sh
-hoopoe --manifest ../hello/hoopoe.toml check
-hoopoe build --manifest ../hello/hoopoe.toml
-hoopoe run --manifest ../hello/hoopoe.toml
+hoo --manifest ../hello/hoopoe.toml check
+hoo build --manifest ../hello/hoopoe.toml
+hoo run --manifest ../hello/hoopoe.toml
 ```
 
 An explicit source argument is still resolved within the selected manifest's
@@ -220,7 +220,7 @@ discovery of another project.
 
 ## Interactive evaluation
 
-`hoopoe repl` starts a persistent read-eval-print loop. It discovers the nearest
+`hoo repl` starts a persistent read-eval-print loop. It discovers the nearest
 `hoopoe.toml` from the current directory and resolves `@/…` imports from that
 project's `package.src`. `--manifest <PATH>` selects exactly that manifest and
 never falls back. Only the absence of a discovered manifest starts a loose
@@ -244,13 +244,13 @@ Redirected input prints neither the banner nor prompts. This makes transcripts
 deterministic and scriptable:
 
 ```sh
-printf 'let x = 40\nx + 2\n' | hoopoe repl
+printf 'let x = 40\nx + 2\n' | hoo repl
 # 42
 ```
 
 ## Formatting sources
 
-`hoopoe format [FILES...]` rewrites explicitly named `.hoo` files in normalized,
+`hoo format [FILES...]` rewrites explicitly named `.hoo` files in normalized,
 deterministic order. Duplicate paths are processed once. With no files it
 discovers the authoritative project and formats every `.hoo` file below
 `package.src`, without following symlinks or entering generated/dependency
@@ -258,7 +258,7 @@ directories. Use `--manifest <PATH>` to select a project authoritatively;
 explicit files outside that project's source root are rejected.
 
 Formatting writes atomically and leaves already formatted files untouched.
-`hoopoe format --check [FILES...]` performs the same selection without writing.
+`hoo format --check [FILES...]` performs the same selection without writing.
 Exit status 0 means success (and, in check mode, no changes), 1 means check mode
 found files that would change, and 2 means selection, I/O, or syntax errors.
 Errors do not prevent other selected files from being checked or formatted.

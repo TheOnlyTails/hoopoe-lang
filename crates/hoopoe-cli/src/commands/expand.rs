@@ -4,7 +4,7 @@ use crate::project_support::{ManifestSelection, ProjectOperation};
 /// Print a project's fully expanded module as formatted Hoopoe source.
 #[derive(clap::Args)]
 #[command(
-	after_long_help = "Examples:\n  hoopoe expand main\n  hoopoe expand network/http\n  hoopoe --manifest ../app/hoopoe.toml expand generated/routes"
+	after_long_help = "Examples:\n  hoo expand main\n  hoo expand network/http\n  hoo --manifest ../app/hoopoe.toml expand generated/routes"
 )]
 pub(crate) struct ExpandCommand {
 	/// Canonical module path relative to package.src, without @/, ./, or .hoo.

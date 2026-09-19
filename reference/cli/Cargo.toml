@@ -22,5 +22,5 @@ hoopoe-compiler = { path = "../compiler" }
 ariadne = "0.6.0"
 
 [[bin]]
-name = "hoopoe"
+name = "hoo"
 path = "src/main.rs"

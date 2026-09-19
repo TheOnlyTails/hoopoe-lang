@@ -1,4 +1,4 @@
-//! Integration tests: spawn the real `hoopoe` binary and assert on its
+//! Integration tests: spawn the real `hoo` binary and assert on its
 //! observable behavior (exit code, stdout, stderr) for `check`, `build`,
 //! `run`, and command-line parsing.
 
@@ -63,20 +63,20 @@ struct Output {
 	stderr: String,
 }
 
-/// Run `hoopoe` with `args`, colors disabled so assertions on plain text
+/// Run `hoo` with `args`, colors disabled so assertions on plain text
 /// are stable regardless of the shell's ANSI settings.
 fn hoopoe(args: &[&str]) -> Output {
 	hoopoe_in(args, std::env::current_dir().unwrap())
 }
 
 fn hoopoe_in(args: &[&str], current_dir: impl AsRef<std::path::Path>) -> Output {
-	let out = Command::new(env!("CARGO_BIN_EXE_hoopoe"))
+	let out = Command::new(env!("CARGO_BIN_EXE_hoo"))
 		.args(args)
 		.current_dir(current_dir)
 		.env("NO_COLOR", "1")
 		.env_remove("FORCE_COLOR")
 		.output()
-		.expect("spawn hoopoe");
+		.expect("spawn hoo");
 	Output {
 		status: out.status,
 		stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
@@ -89,7 +89,7 @@ fn hoopoe_with_stdin(
 	current_dir: impl AsRef<std::path::Path>,
 	stdin: &str,
 ) -> Output {
-	let mut child = Command::new(env!("CARGO_BIN_EXE_hoopoe"))
+	let mut child = Command::new(env!("CARGO_BIN_EXE_hoo"))
 		.args(args)
 		.current_dir(current_dir)
 		.env("NO_COLOR", "1")
@@ -98,7 +98,7 @@ fn hoopoe_with_stdin(
 		.stdout(Stdio::piped())
 		.stderr(Stdio::piped())
 		.spawn()
-		.expect("spawn hoopoe");
+		.expect("spawn hoo");
 	child
 		.stdin
 		.take()
@@ -294,7 +294,7 @@ fn expand_accepts_only_existing_canonical_project_module_paths() {
 	let help = hoopoe_in(&["expand", "--help"], &root);
 	assert!(help.status.success());
 	assert!(help.stdout.contains("without @/, ./, or .hoo"));
-	assert!(help.stdout.contains("hoopoe expand network/http"));
+	assert!(help.stdout.contains("hoo expand network/http"));
 	std::fs::remove_dir_all(root).unwrap();
 }
 
@@ -465,7 +465,7 @@ fn doc_open_runs_only_after_publication_and_receives_the_generated_index() {
 	let path = std::iter::once(bin.clone())
 		.chain(std::env::split_paths(&path))
 		.collect::<Vec<_>>();
-	let output = Command::new(env!("CARGO_BIN_EXE_hoopoe"))
+	let output = Command::new(env!("CARGO_BIN_EXE_hoo"))
 		.arg("doc")
 		.arg("--open")
 		.arg("--output=-site")
@@ -1865,7 +1865,7 @@ fn new_rejects_a_non_unicode_destination_basename_without_writing() {
 	let root = unique_temp_path("hoopoe_cli_new_non_unicode", "dir");
 	std::fs::create_dir_all(&root).unwrap();
 	let destination = root.join(std::ffi::OsString::from_vec(vec![b'a', 0xff]));
-	let out = Command::new(env!("CARGO_BIN_EXE_hoopoe"))
+	let out = Command::new(env!("CARGO_BIN_EXE_hoo"))
 		.arg("new")
 		.arg(&destination)
 		.arg("--no-git")
@@ -1999,7 +1999,7 @@ fn new_missing_git_leaves_no_destination_or_nested_parents() {
 	let root = unique_temp_path("hoopoe_cli_new_missing_git", "dir");
 	std::fs::create_dir_all(&root).unwrap();
 	let destination = root.join("missing/parents/git-app");
-	let out = Command::new(env!("CARGO_BIN_EXE_hoopoe"))
+	let out = Command::new(env!("CARGO_BIN_EXE_hoo"))
 		.args(["new"])
 		.arg(&destination)
 		.env("PATH", "")
@@ -2028,7 +2028,7 @@ fn new_failing_git_preserves_an_existing_empty_destination_and_cleans_staging() 
 	permissions.set_mode(0o755);
 	std::fs::set_permissions(&git, permissions).unwrap();
 
-	let out = Command::new(env!("CARGO_BIN_EXE_hoopoe"))
+	let out = Command::new(env!("CARGO_BIN_EXE_hoo"))
 		.args(["new"])
 		.arg(&destination)
 		.env("PATH", &bin)
@@ -2073,7 +2073,7 @@ fn new_rejects_a_symlink_ancestor_changed_by_git_without_touching_either_target(
 	std::fs::set_permissions(&git, permissions).unwrap();
 	let destination = link.join("nested/app");
 
-	let out = Command::new(env!("CARGO_BIN_EXE_hoopoe"))
+	let out = Command::new(env!("CARGO_BIN_EXE_hoo"))
 		.arg("new")
 		.arg(&destination)
 		.env("PATH", &bin)
@@ -2115,7 +2115,7 @@ fn new_rejects_a_symlink_created_in_a_missing_parent_without_publishing() {
 	std::fs::set_permissions(&git, permissions).unwrap();
 	let destination = original.join("nested/app");
 
-	let out = Command::new(env!("CARGO_BIN_EXE_hoopoe"))
+	let out = Command::new(env!("CARGO_BIN_EXE_hoo"))
 		.arg("new")
 		.arg(&destination)
 		.env("PATH", &bin)
@@ -2169,7 +2169,7 @@ fn new_cleans_staging_after_preserving_read_only_destination_permissions() {
 	permissions.set_mode(0o755);
 	std::fs::set_permissions(&git, permissions).unwrap();
 
-	let out = Command::new(env!("CARGO_BIN_EXE_hoopoe"))
+	let out = Command::new(env!("CARGO_BIN_EXE_hoo"))
 		.arg("new")
 		.arg(link.join("private-app"))
 		.env("PATH", &bin)
@@ -2197,7 +2197,7 @@ fn new_cleans_staging_after_preserving_read_only_destination_permissions() {
 fn new_help_documents_the_path_and_supported_flags() {
 	let out = hoopoe(&["new", "--help"]);
 	assert!(out.status.success(), "{}", out.stderr);
-	assert!(out.stdout.contains("Usage: hoopoe new [OPTIONS] <PATH>"));
+	assert!(out.stdout.contains("Usage: hoo new [OPTIONS] <PATH>"));
 	assert!(out.stdout.contains("--lib"));
 	assert!(out.stdout.contains("--no-git"));
 	assert!(!out.stdout.contains("--name"));
@@ -2210,12 +2210,12 @@ fn bare_invocation_exits_nonzero() {
 }
 
 #[test]
-fn help_displays_hoopoe_as_the_program_name() {
+fn help_displays_hoo_as_the_program_name() {
 	let out = hoopoe(&["--help"]);
 
 	assert!(out.status.success());
 	assert!(
-		out.stdout.contains("Usage: hoopoe"),
+		out.stdout.contains("Usage: hoo"),
 		"stdout was: {}",
 		out.stdout
 	);

@@ -7,7 +7,7 @@
 //! (never the real working directory) and `entry_filenames` defaults to
 //! `"[name].js"` (no content hash), so a given set of module sources always
 //! produces byte-identical output — required for the golden/e2e tests and for
-//! `hoopoe build` to be reproducible.
+//! `hoo build` to be reproducible.
 #[cfg(all(target_arch = "wasm32", not(feature = "bundler-swc")))]
 compile_error!("hoopoe-compiler requires the `bundler-swc` feature on wasm32");
 

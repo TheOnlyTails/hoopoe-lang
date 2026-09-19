@@ -20,7 +20,7 @@ What it shows:
 - **Handlers are plain functions** — the router is independently testable.
 
 ```sh
-hoopoe run
+hoo run
 # 200 ok
 # 404 not found
 ```

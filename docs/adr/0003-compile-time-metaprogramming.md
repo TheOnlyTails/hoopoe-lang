@@ -109,7 +109,7 @@ limits are diagnostics; no partial result proceeds to lowering.
 
 The canonical project query also retains the final provenance-aware token stream for
 the expanded runtime tree. Tooling renders and formats that stream rather than printing
-the internal AST. `hoopoe expand <module-path>` and the compiler lab's **Macro Expansion**
+the internal AST. `hoo expand <module-path>` and the compiler lab's **Macro Expansion**
 panel are views over this same query: they contain no separate expansion pass, expose
 no partial output after an error, and leave structured diagnostics intact for terminal,
 LSP, and browser consumers.

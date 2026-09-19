@@ -83,7 +83,7 @@ not depend on Node's version-specific uncaught-exception or unhandled-rejection 
   adapter without exposing Node process state as language semantics.
 - The task runtime produces values, cancellation, and defects and performs root joining and cleanup.
 - The Node launcher alone maps those outcomes to standard streams, signals, and process statuses.
-- Ordinary `hoopoe build` output remains an inert importable ES module. `hoopoe run` and future explicitly
+- Ordinary `hoo build` output remains an inert importable ES module. `hoo run` and future explicitly
   runnable Node artifacts own executable launch policy.
 
 The mapping is host policy rather than `Option`, `Result`, `Task`, or expected-error semantics. A later

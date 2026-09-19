@@ -115,7 +115,7 @@ inputs; they do not scan syntax or reinterpret diagnostics independently.
   echo-in-release = "warn"
   ```
 
-- `hoopoe build`, `hoopoe run`, and `hoopoe check` default to development and accept `--release`.
+- `hoo build`, `hoo run`, and `hoo check` default to development and accept `--release`.
   Release `check` evaluates the same lint without emitting. REPL is always development.
 - LSP defaults to development and exposes a workspace setting for release-profile diagnostics while
   consuming the same manifest lint level.

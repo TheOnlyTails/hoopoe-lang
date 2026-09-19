@@ -25,18 +25,18 @@ todo-cli/
 Run one from its project directory with:
 
 ```sh
-hoopoe check           # selects build.entry from hoopoe.toml
-hoopoe build
-hoopoe run
+hoo check           # selects build.entry from hoopoe.toml
+hoo build
+hoo run
 ```
 
 You can also run an example from outside its directory by selecting its
 manifest exactly (the option may appear before or after the subcommand):
 
 ```sh
-hoopoe --manifest examples/hello-world/hoopoe.toml check
-hoopoe build --manifest examples/hello-world/hoopoe.toml
-hoopoe run --manifest examples/hello-world/hoopoe.toml
+hoo --manifest examples/hello-world/hoopoe.toml check
+hoo build --manifest examples/hello-world/hoopoe.toml
+hoo run --manifest examples/hello-world/hoopoe.toml
 ```
 
 ## The examples
