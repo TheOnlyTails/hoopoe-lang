@@ -1,6 +1,7 @@
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=DM+Sans:wght@600..800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Noto+Serif:ital,wght@0,400..700;1,400..700&display=swap");
 
 :root {
+	--vp-font-family-base: "Atkinson Hyperlegible", system-ui, sans-serif;
 	--vp-font-family-mono:
 		ui-monospace, "JetBrains Mono", "Cascadia Code", "Fira Code", "Menlo", "Monaco", "Consolas",
 		"Liberation Mono", "Courier New", monospace;
@@ -18,4 +19,23 @@
 	--vp-c-brand-2: #f97316;
 	--vp-c-brand-3: #ea580c;
 	--vp-c-brand-soft: rgb(249 115 22 / 18%);
+}
+
+.vp-doc :where(p:not(.custom-block-title), li, blockquote, dd, td, figcaption),
+.VPHomeHero .tagline,
+.VPFeature .details {
+	font-family: "Noto Serif", Georgia, "Times New Roman", serif;
+}
+
+:where(.vp-doc h1, .vp-doc h2, .vp-doc h3, .vp-doc h4, .vp-doc h5, .vp-doc h6),
+.VPHomeHero .name,
+.VPHomeHero .text,
+.VPFeature .title {
+	font-family: "Instrument Serif", Georgia, serif;
+	font-weight: 400;
+	letter-spacing: 0.01em;
+}
+
+.VPNavBarTitle .title span {
+	font-family: "DM Sans", sans-serif;
 }
