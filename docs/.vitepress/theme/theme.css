@@ -4,15 +4,18 @@
 	--vp-font-family-mono:
 		ui-monospace, "JetBrains Mono", "Cascadia Code", "Fira Code", "Menlo", "Monaco", "Consolas",
 		"Liberation Mono", "Courier New", monospace;
-	--vp-c-brand-1: var(--vp-c-green-1);
-	--vp-c-brand-2: var(--vp-c-green-2);
-	--vp-c-brand-3: var(--vp-c-green-3);
-	--vp-c-brand-soft: var(--vp-c-green-soft);
+	--vp-c-brand-1: #c2410c;
+	--vp-c-brand-2: #ea580c;
+	--vp-c-brand-3: #f97316;
+	--vp-c-brand-soft: rgb(249 115 22 / 14%);
 
 	--vp-home-hero-name-color: transparent;
-	--vp-home-hero-name-background: linear-gradient(
-		in oklch 325deg,
-		var(--vp-c-green-1),
-		var(--vp-c-indigo-2)
-	);
+	--vp-home-hero-name-background: linear-gradient(120deg, #ffb000, #f97316 55%, #ea580c);
+}
+
+.dark {
+	--vp-c-brand-1: #fb923c;
+	--vp-c-brand-2: #f97316;
+	--vp-c-brand-3: #ea580c;
+	--vp-c-brand-soft: rgb(249 115 22 / 18%);
 }

@@ -5,6 +5,7 @@ import grammar from "../../extension/syntaxes/hoopoe.tmLanguage.json" with { typ
 export default defineConfig({
 	title: "Hoopoe",
 	description: "A simple language that gets out of your way.",
+	head: [["link", { rel: "icon", type: "image/svg+xml", href: "/logo.svg" }]],
 	cleanUrls: true,
 	lastUpdated: true,
 	// Planning evidence is linked from the repository but is not part of the
@@ -39,6 +40,11 @@ export default defineConfig({
 	},
 	themeConfig: {
 		// https://vitepress.dev/reference/default-theme-config
+		logo: {
+			light: "/logo.svg",
+			dark: "/logo-dark.svg",
+			alt: "Hoopoe",
+		},
 		nav: [
 			{ text: "Home", link: "/" },
 			{ text: "Guide", link: "/guide/" },
