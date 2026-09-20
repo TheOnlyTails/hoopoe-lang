@@ -14,7 +14,7 @@ hoopoe-diagnostics = { workspace = true }
 hoopoe-errorcode = { workspace = true }
 ecow = { workspace = true }
 ordered-float = { workspace = true }
-unicode-ident = "1.0.24"
+unicode-ident = "1.0.26"
 
 [lints.clippy]
 all = "warn"

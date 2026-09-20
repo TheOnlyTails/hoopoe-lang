@@ -1,6 +1,9 @@
 use oxc::{
-	allocator::{Allocator, Box as ArenaBox, CloneIn, Vec as ArenaVec},
-	ast::{AstBuilder, ast::*},
+	allocator::{Allocator, Box as ArenaBox, CloneIn, GetAllocator, Vec as ArenaVec},
+	ast::{
+		ast::*,
+		builder::{AstBuilder as OxcAstBuilder, GetAstBuilder},
+	},
 	codegen::Codegen,
 	span::SPAN,
 	syntax::number::BigintBase,
@@ -17,6 +20,34 @@ use hoopoe_hir::hir::{
 
 use crate::EchoEmission;
 use crate::box_rt;
+
+struct AstBuilder<'a> {
+	builder: OxcAstBuilder<'a>,
+	allocator: &'a Allocator,
+}
+
+impl<'a> AstBuilder<'a> {
+	fn new(allocator: &'a Allocator) -> Self {
+		Self {
+			builder: OxcAstBuilder::new(allocator),
+			allocator,
+		}
+	}
+}
+
+impl<'a> GetAstBuilder<'a> for AstBuilder<'a> {
+	type Builder = OxcAstBuilder<'a>;
+
+	fn builder(&self) -> &Self::Builder {
+		&self.builder
+	}
+}
+
+impl<'a> GetAllocator<'a> for AstBuilder<'a> {
+	fn allocator(&self) -> &'a Allocator {
+		self.allocator
+	}
+}
 
 fn external_alias(module: &str, symbol: &str, kind: &str) -> String {
 	fn encode(value: &str) -> String {
@@ -996,7 +1027,7 @@ impl<'e, 'a> ActivationPlanner<'e, 'a> {
 				..
 			} => {
 				let before_binding = self.source_scopes.clone();
-				let binding = self.bind(name);
+				let binding = self.bind(name.as_str());
 				let remainder = self.compile_statements(stmts, index + 1, tail, target, next);
 				let after_binding = self.source_scopes.clone();
 				let (value_name, value_slot) = self.temporary_named();
@@ -1104,10 +1135,10 @@ impl<'e, 'a> ActivationPlanner<'e, 'a> {
 		next: u32,
 	) -> u32 {
 		self.push_scope();
-		let iterator_location = self.bind(iterator_name);
+		let iterator_location = self.bind(iterator_name.as_str());
 		let item_name: EcoString = self.emitter.gensym().into();
-		self.bind(&item_name);
-		self.bind(successor_name);
+		self.bind(item_name.as_str());
+		self.bind(successor_name.as_str());
 
 		let normal_value = option.map_or(HirExpr::Undefined, |option| HirExpr::VariantRef {
 			enum_name: option.enum_name.clone(),
@@ -2057,7 +2088,7 @@ impl<'a> JsValue<'a> {
 	/// Collapse into a single JS expression.
 	/// If there are leading statements, wrap in an IIFE:
 	/// `(() => { ...stmts; return expr; })()`
-	fn into_expression(self, ast: AstBuilder<'a>) -> Expression<'a> {
+	fn into_expression(self, ast: &AstBuilder<'a>) -> Expression<'a> {
 		if self.stmts.is_empty() {
 			return self.expr;
 		}
@@ -2066,35 +2097,28 @@ impl<'a> JsValue<'a> {
 		body_stmts.push(Statement::ReturnStatement(ReturnStatement::boxed(
 			SPAN,
 			Some(self.expr),
-			&ast,
+			ast,
 		)));
 
-		let body = FunctionBody::new(SPAN, ArenaVec::new_in(&ast), body_stmts, &ast);
-		let params = FormalParameters::new(
+		let body = ArrowFunctionBody::new_function_body(SPAN, ArenaVec::new_in(ast), body_stmts, ast);
+		let params = FormalParameters::boxed(
 			SPAN,
 			FormalParameterKind::ArrowFormalParameters,
-			ArenaVec::new_in(&ast),
-			oxc::ast::NONE,
-			&ast,
+			ArenaVec::new_in(ast),
+			None,
+			ast,
 		);
 		let arrow = Expression::ArrowFunctionExpression(ArrowFunctionExpression::boxed(
-			SPAN,
-			false,
-			false,
-			oxc::ast::NONE,
-			params,
-			oxc::ast::NONE,
-			body,
-			&ast,
+			SPAN, false, None, params, None, body, ast,
 		));
 
 		Expression::CallExpression(CallExpression::boxed(
 			SPAN,
 			arrow,
-			oxc::ast::NONE,
-			ArenaVec::new_in(&ast),
+			None,
+			ArenaVec::new_in(ast),
 			false,
-			&ast,
+			ast,
 		))
 	}
 }
@@ -2225,7 +2249,7 @@ impl<'a> Emitter<'a> {
 		Expression::new_call_expression(
 			SPAN,
 			Expression::new_identifier(SPAN, self.ast.allocator.alloc_str(helper), &self.ast),
-			oxc::ast::NONE,
+			None,
 			arguments,
 			false,
 			&self.ast,
@@ -2236,15 +2260,7 @@ impl<'a> Emitter<'a> {
 		let kind = VariableDeclarationKind::Const;
 		let pat =
 			BindingPattern::new_binding_identifier(SPAN, self.ast.allocator.alloc_str(name), &self.ast);
-		let declarator = VariableDeclarator::new(
-			SPAN,
-			kind,
-			pat,
-			oxc::ast::NONE,
-			Some(init),
-			false,
-			&self.ast,
-		);
+		let declarator = VariableDeclarator::new(SPAN, pat, None, Some(init), false, &self.ast);
 		let decl = VariableDeclaration::new(
 			SPAN,
 			kind,
@@ -2506,7 +2522,7 @@ impl<'a> Emitter<'a> {
 			Some(specifiers),
 			source,
 			None,
-			oxc::ast::NONE,
+			None,
 			ImportOrExportKind::Value,
 			&self.ast,
 		))
@@ -2647,7 +2663,7 @@ impl<'a> Emitter<'a> {
 				if let HirExpr::Field { recv, name } = callee.as_ref() {
 					return self.activation_member_packet(
 						self.emit_expr(recv),
-						name,
+						name.as_str(),
 						args,
 						*mode,
 						*source,
@@ -2675,7 +2691,7 @@ impl<'a> Emitter<'a> {
 			} => {
 				let prototype = Expression::new_static_member_expression(
 					SPAN,
-					self.local_read(owner),
+					self.local_read(owner.as_str()),
 					IdentifierName::new(SPAN, "$hoopoe$type", &self.ast),
 					false,
 					&self.ast,
@@ -2707,7 +2723,7 @@ impl<'a> Emitter<'a> {
 				source,
 				..
 			} => self.emit_bound_dispatch(
-				method,
+				method.as_str(),
 				receiver,
 				argument,
 				hidden_arguments,
@@ -2725,7 +2741,7 @@ impl<'a> Emitter<'a> {
 				source,
 				..
 			} => self.emit_unary_bound_dispatch(
-				method,
+				method.as_str(),
 				receiver,
 				hidden_arguments,
 				cases,
@@ -2884,7 +2900,7 @@ impl<'a> Emitter<'a> {
 			Statement::new_block_statement(SPAN, loop_body, &self.ast),
 			&self.ast,
 		);
-		let params = FormalParameters::new(
+		let params = FormalParameters::boxed(
 			SPAN,
 			FormalParameterKind::FormalParameter,
 			ArenaVec::from_value_in(
@@ -2899,7 +2915,7 @@ impl<'a> Emitter<'a> {
 				),
 				&self.ast,
 			),
-			oxc::ast::NONE,
+			None,
 			&self.ast,
 		);
 		Expression::FunctionExpression(Function::boxed(
@@ -2909,11 +2925,11 @@ impl<'a> Emitter<'a> {
 			false,
 			false,
 			false,
-			oxc::ast::NONE,
-			oxc::ast::NONE,
+			None,
+			None,
 			params,
-			oxc::ast::NONE,
-			Some(FunctionBody::new(
+			None,
+			Some(FunctionBody::boxed(
 				SPAN,
 				ArenaVec::new_in(&self.ast),
 				ArenaVec::from_value_in(while_loop, &self.ast),
@@ -2969,12 +2985,12 @@ impl<'a> Emitter<'a> {
 
 	fn emit_func(&self, func: &HirFunc) -> Statement<'a> {
 		let callable = self.activation_callable(&func.params, &func.body, false);
-		self.plain_decl(&func.name, callable, VariableDeclarationKind::Let)
+		self.plain_decl(func.name.as_str(), callable, VariableDeclarationKind::Let)
 	}
 
 	/// Emit an immutable top-level binding.
 	fn emit_module_let(&self, let_: &HirLet) -> Statement<'a> {
-		self.binding_declaration(&let_.name, self.emit_expr(&let_.value))
+		self.binding_declaration(let_.name.as_str(), self.emit_expr(&let_.value))
 	}
 
 	/// Emit a struct as `class <Name> { constructor(fields) { … } }`.
@@ -3076,14 +3092,14 @@ impl<'a> Emitter<'a> {
 		let mut ctor_params = ArenaVec::new_in(&self.ast);
 		let fields_pat = BindingPattern::new_binding_identifier(SPAN, "fields", &self.ast);
 		ctor_params.push(FormalParameter::new_plain(SPAN, fields_pat, &self.ast));
-		let params = FormalParameters::new(
+		let params = FormalParameters::boxed(
 			SPAN,
 			FormalParameterKind::FormalParameter,
 			ctor_params,
-			oxc::ast::NONE,
+			None,
 			&self.ast,
 		);
-		let ctor_body = FunctionBody::new(SPAN, ArenaVec::new_in(&self.ast), ctor_stmts, &self.ast);
+		let ctor_body = FunctionBody::boxed(SPAN, ArenaVec::new_in(&self.ast), ctor_stmts, &self.ast);
 		let ctor_fn = Function::boxed(
 			SPAN,
 			FunctionType::FunctionExpression,
@@ -3091,10 +3107,10 @@ impl<'a> Emitter<'a> {
 			false,
 			false,
 			false,
-			oxc::ast::NONE,
-			oxc::ast::NONE,
+			None,
+			None,
 			params,
-			oxc::ast::NONE,
+			None,
 			Some(ctor_body),
 			&self.ast,
 		);
@@ -3121,7 +3137,7 @@ impl<'a> Emitter<'a> {
 		for method in &class.statics {
 			elements.push(self.emit_method(method, true));
 		}
-		let body = ClassBody::new(SPAN, elements, &self.ast);
+		let body = ClassBody::boxed(SPAN, elements, &self.ast);
 		let class_name = class.name.to_string();
 		let name = BindingIdentifier::new(SPAN, self.ast.allocator.alloc_str(&class.name), &self.ast);
 		let class = Class::boxed(
@@ -3129,9 +3145,8 @@ impl<'a> Emitter<'a> {
 			self.representation.class_type(),
 			ArenaVec::new_in(&self.ast),
 			Some(name),
-			oxc::ast::NONE,
 			None,
-			oxc::ast::NONE,
+			None,
 			ArenaVec::new_in(&self.ast),
 			body,
 			false,
@@ -3157,13 +3172,12 @@ impl<'a> Emitter<'a> {
 		);
 		let declarator = VariableDeclarator::new(
 			SPAN,
-			VariableDeclarationKind::Const,
 			BindingPattern::new_binding_identifier(
 				SPAN,
 				self.ast.allocator.alloc_str(&class_name),
 				&self.ast,
 			),
-			oxc::ast::NONE,
+			None,
 			Some(init),
 			false,
 			&self.ast,
@@ -3218,14 +3232,14 @@ impl<'a> Emitter<'a> {
 			);
 			js_params.push(FormalParameter::new_plain(SPAN, pat, &self.ast));
 		}
-		let params = FormalParameters::new(
+		let params = FormalParameters::boxed(
 			SPAN,
 			FormalParameterKind::FormalParameter,
 			js_params,
-			oxc::ast::NONE,
+			None,
 			&self.ast,
 		);
-		let fn_body = FunctionBody::new(SPAN, ArenaVec::new_in(&self.ast), body_stmts, &self.ast);
+		let fn_body = FunctionBody::boxed(SPAN, ArenaVec::new_in(&self.ast), body_stmts, &self.ast);
 		Function::boxed(
 			SPAN,
 			FunctionType::FunctionExpression,
@@ -3233,10 +3247,10 @@ impl<'a> Emitter<'a> {
 			false,
 			false,
 			false,
-			oxc::ast::NONE,
-			oxc::ast::NONE,
+			None,
+			None,
 			params,
-			oxc::ast::NONE,
+			None,
 			Some(fn_body),
 			&self.ast,
 		)
@@ -3313,8 +3327,7 @@ impl<'a> Emitter<'a> {
 			None,
 			&self.ast,
 		)));
-		let init =
-			Expression::new_call_expression(SPAN, symbol_for, oxc::ast::NONE, args, false, &self.ast);
+		let init = Expression::new_call_expression(SPAN, symbol_for, None, args, false, &self.ast);
 		self.const_decl("TAG", init)
 	}
 
@@ -3385,14 +3398,8 @@ impl<'a> Emitter<'a> {
 				None,
 				&self.ast,
 			)));
-			let sym_call = Expression::new_call_expression(
-				SPAN,
-				symbol_for,
-				oxc::ast::NONE,
-				sym_args,
-				false,
-				&self.ast,
-			);
+			let sym_call =
+				Expression::new_call_expression(SPAN, symbol_for, None, sym_args, false, &self.ast);
 			stmts.push(self.const_decl(&t_name, sym_call));
 
 			// The `{ [TAG]: t<i> }` object both variant shapes carry.
@@ -3465,7 +3472,7 @@ impl<'a> Emitter<'a> {
 			stmts,
 			expr: return_obj,
 		}
-		.into_expression(self.ast);
+		.into_expression(&self.ast);
 		if self.representation.is_transactional() {
 			let module = self.current_module.as_deref().unwrap_or_default();
 			iife = self.transaction_call(
@@ -3547,30 +3554,26 @@ impl<'a> Emitter<'a> {
 			Some(ret_expr),
 			&self.ast,
 		));
-		let body = FunctionBody::new(SPAN, ArenaVec::new_in(&self.ast), body_stmts, &self.ast);
+		let body = ArrowFunctionBody::new_function_body(
+			SPAN,
+			ArenaVec::new_in(&self.ast),
+			body_stmts,
+			&self.ast,
+		);
 		let mut params = ArenaVec::new_in(&self.ast);
 		params.push(FormalParameter::new_plain(
 			SPAN,
 			BindingPattern::new_binding_identifier(SPAN, "fields", &self.ast),
 			&self.ast,
 		));
-		let formal = FormalParameters::new(
+		let formal = FormalParameters::boxed(
 			SPAN,
 			FormalParameterKind::ArrowFormalParameters,
 			params,
-			oxc::ast::NONE,
+			None,
 			&self.ast,
 		);
-		Expression::new_arrow_function_expression(
-			SPAN,
-			false,
-			false,
-			oxc::ast::NONE,
-			formal,
-			oxc::ast::NONE,
-			body,
-			&self.ast,
-		)
+		Expression::new_arrow_function_expression(SPAN, false, None, formal, None, body, &self.ast)
 	}
 
 	fn structural_value(
@@ -3599,7 +3602,7 @@ impl<'a> Emitter<'a> {
 		Expression::new_call_expression(
 			SPAN,
 			Expression::new_identifier(SPAN, "hoopoeStructuralValue", &self.ast),
-			oxc::ast::NONE,
+			None,
 			args,
 			false,
 			&self.ast,
@@ -3635,15 +3638,7 @@ impl<'a> Emitter<'a> {
 	) -> Statement<'a> {
 		let pat =
 			BindingPattern::new_binding_identifier(SPAN, self.ast.allocator.alloc_str(name), &self.ast);
-		let declarator = VariableDeclarator::new(
-			SPAN,
-			kind,
-			pat,
-			oxc::ast::NONE,
-			Some(init),
-			false,
-			&self.ast,
-		);
+		let declarator = VariableDeclarator::new(SPAN, pat, None, Some(init), false, &self.ast);
 		let decl = VariableDeclaration::new(
 			SPAN,
 			kind,
@@ -3681,7 +3676,7 @@ impl<'a> Emitter<'a> {
 		let callee = Expression::new_identifier(SPAN, self.ast.allocator.alloc_str(class), &self.ast);
 		let mut args = ArenaVec::new_in(&self.ast);
 		args.push(Argument::from(payload));
-		Expression::new_new_expression(SPAN, callee, oxc::ast::NONE, args, &self.ast)
+		Expression::new_new_expression(SPAN, callee, None, args, &self.ast)
 	}
 
 	fn direct_integer_box(&self, class: &str, payload: Expression<'a>) -> Expression<'a> {
@@ -3698,7 +3693,7 @@ impl<'a> Emitter<'a> {
 		);
 		let mut args = ArenaVec::new_in(&self.ast);
 		args.push(Argument::from(payload));
-		Expression::new_call_expression(SPAN, callee, oxc::ast::NONE, args, false, &self.ast)
+		Expression::new_call_expression(SPAN, callee, None, args, false, &self.ast)
 	}
 
 	/// `<expr>.v` — read a boxed value's raw payload (uniform value boxing,
@@ -3779,7 +3774,7 @@ impl<'a> Emitter<'a> {
 	fn call1(&self, callee: Expression<'a>, arg: Expression<'a>) -> Expression<'a> {
 		let mut args = ArenaVec::new_in(&self.ast);
 		args.push(Argument::from(arg));
-		Expression::new_call_expression(SPAN, callee, oxc::ast::NONE, args, false, &self.ast)
+		Expression::new_call_expression(SPAN, callee, None, args, false, &self.ast)
 	}
 
 	fn runtime_call(&self, name: &str, args: Vec<Expression<'a>>) -> Expression<'a> {
@@ -3794,7 +3789,7 @@ impl<'a> Emitter<'a> {
 		Expression::new_call_expression(
 			SPAN,
 			self.ident(self.ast.allocator.alloc_str(name)),
-			oxc::ast::NONE,
+			None,
 			arguments,
 			false,
 			&self.ast,
@@ -3819,7 +3814,7 @@ impl<'a> Emitter<'a> {
 		for a in args {
 			js_args.push(Argument::from(a));
 		}
-		Expression::new_call_expression(SPAN, callee, oxc::ast::NONE, js_args, false, &self.ast)
+		Expression::new_call_expression(SPAN, callee, None, js_args, false, &self.ast)
 	}
 
 	/// A bare global identifier reference or compiler-generated local.
@@ -3869,27 +3864,31 @@ impl<'a> Emitter<'a> {
 	) -> Expression<'a> {
 		let mut body_stmts = ArenaVec::new_in(&self.ast);
 		body_stmts.push(Statement::new_return_statement(SPAN, Some(body), &self.ast));
-		let function_body = FunctionBody::new(SPAN, ArenaVec::new_in(&self.ast), body_stmts, &self.ast);
+		let function_body = ArrowFunctionBody::new_function_body(
+			SPAN,
+			ArenaVec::new_in(&self.ast),
+			body_stmts,
+			&self.ast,
+		);
 		let mut params = ArenaVec::new_in(&self.ast);
 		params.push(FormalParameter::new_plain(
 			SPAN,
 			BindingPattern::new_binding_identifier(SPAN, param, &self.ast),
 			&self.ast,
 		));
-		let formal = FormalParameters::new(
+		let formal = FormalParameters::boxed(
 			SPAN,
 			FormalParameterKind::ArrowFormalParameters,
 			params,
-			oxc::ast::NONE,
+			None,
 			&self.ast,
 		);
 		let arrow = Expression::new_arrow_function_expression(
 			SPAN,
 			false,
-			false,
-			oxc::ast::NONE,
+			None,
 			formal,
-			oxc::ast::NONE,
+			None,
 			function_body,
 			&self.ast,
 		);
@@ -4014,7 +4013,7 @@ impl<'a> Emitter<'a> {
 					let call = Expression::new_call_expression(
 						SPAN,
 						self.ident(self.ast.allocator.alloc_str(&target_name)),
-						oxc::ast::NONE,
+						None,
 						args,
 						false,
 						&self.ast,
@@ -4133,7 +4132,7 @@ impl<'a> Emitter<'a> {
 					let call = Expression::new_call_expression(
 						SPAN,
 						self.ident(self.ast.allocator.alloc_str(&target_name)),
-						oxc::ast::NONE,
+						None,
 						args,
 						false,
 						&self.ast,
@@ -4237,7 +4236,7 @@ impl<'a> Emitter<'a> {
 					let call = Expression::new_call_expression(
 						SPAN,
 						self.ident(self.ast.allocator.alloc_str(&target_name)),
-						oxc::ast::NONE,
+						None,
 						args,
 						false,
 						&self.ast,
@@ -4320,7 +4319,7 @@ impl<'a> Emitter<'a> {
 					let call = Expression::new_call_expression(
 						SPAN,
 						self.ident(self.ast.allocator.alloc_str(&target_name)),
-						oxc::ast::NONE,
+						None,
 						args,
 						false,
 						&self.ast,
@@ -4577,7 +4576,7 @@ impl<'a> Emitter<'a> {
 				Expression::new_numeric_literal(SPAN, 0.0, None, NumberBase::Decimal, &self.ast),
 				&self.ast,
 			),
-			HirExpr::Local(name) => self.local_read(name),
+			HirExpr::Local(name) => self.local_read(name.as_str()),
 			HirExpr::Echo { operand, site } => {
 				if matches!(self.echo_emission, EchoEmission::Release) {
 					self.emit_expr(operand)
@@ -4592,7 +4591,7 @@ impl<'a> Emitter<'a> {
 					Expression::new_call_expression(
 						SPAN,
 						Expression::new_identifier(SPAN, "hoopoeEcho", &self.ast),
-						oxc::ast::NONE,
+						None,
 						arguments,
 						false,
 						&self.ast,
@@ -4648,7 +4647,7 @@ impl<'a> Emitter<'a> {
 					Expression::new_call_expression(
 						SPAN,
 						Expression::new_identifier(SPAN, "hoopoeType", &self.ast),
-						oxc::ast::NONE,
+						None,
 						call_args,
 						false,
 						&self.ast,
@@ -4680,7 +4679,7 @@ impl<'a> Emitter<'a> {
 				Expression::new_call_expression(
 					SPAN,
 					Expression::new_identifier(SPAN, "hoopoeTypeProjection", &self.ast),
-					oxc::ast::NONE,
+					None,
 					args,
 					false,
 					&self.ast,
@@ -4759,7 +4758,7 @@ impl<'a> Emitter<'a> {
 				for arg in args {
 					arguments.push(Argument::from(self.emit_expr(arg)));
 				}
-				Expression::new_call_expression(SPAN, callee, oxc::ast::NONE, arguments, false, &self.ast)
+				Expression::new_call_expression(SPAN, callee, None, arguments, false, &self.ast)
 			}
 			HirExpr::ActivationCall {
 				callee,
@@ -4790,7 +4789,7 @@ impl<'a> Emitter<'a> {
 			} => {
 				let prototype = Expression::new_static_member_expression(
 					SPAN,
-					self.local_read(owner),
+					self.local_read(owner.as_str()),
 					IdentifierName::new(SPAN, "$hoopoe$type", &self.ast),
 					false,
 					&self.ast,
@@ -4862,14 +4861,7 @@ impl<'a> Emitter<'a> {
 						self.runtime_call("hoopoeCurrentExecutionSignal", vec![]),
 					));
 				}
-				let call = Expression::new_call_expression(
-					SPAN,
-					callee,
-					oxc::ast::NONE,
-					arguments,
-					false,
-					&self.ast,
-				);
+				let call = Expression::new_call_expression(SPAN, callee, None, arguments, false, &self.ast);
 				match return_marshal {
 					Some(hoopoe_hir::hir::MarshalKind::Int) => {
 						let checked = self.runtime_call("hoopoeTrustedInt", vec![call]);
@@ -4938,7 +4930,7 @@ impl<'a> Emitter<'a> {
 				source,
 				..
 			} => self.emit_bound_dispatch(
-				method,
+				method.as_str(),
 				receiver,
 				argument,
 				hidden_arguments,
@@ -4956,7 +4948,7 @@ impl<'a> Emitter<'a> {
 				source,
 				..
 			} => self.emit_unary_bound_dispatch(
-				method,
+				method.as_str(),
 				receiver,
 				hidden_arguments,
 				cases,
@@ -5175,7 +5167,7 @@ impl<'a> Emitter<'a> {
 					Expression::new_identifier(SPAN, self.ast.allocator.alloc_str(class), &self.ast);
 				let mut args = ArenaVec::new_in(&self.ast);
 				args.push(Argument::from(obj));
-				let value = Expression::new_new_expression(SPAN, callee, oxc::ast::NONE, args, &self.ast);
+				let value = Expression::new_new_expression(SPAN, callee, None, args, &self.ast);
 				if let Some(prototype) = prototype {
 					self.set_prototype(value, self.emit_expr(prototype))
 				} else {
@@ -5211,7 +5203,7 @@ impl<'a> Emitter<'a> {
 					Expression::new_identifier(SPAN, self.ast.allocator.alloc_str(class), &self.ast);
 				let mut args = ArenaVec::new_in(&self.ast);
 				args.push(Argument::from(object));
-				let value = Expression::new_new_expression(SPAN, callee, oxc::ast::NONE, args, &self.ast);
+				let value = Expression::new_new_expression(SPAN, callee, None, args, &self.ast);
 				if let Some(prototype) = prototype {
 					self.set_prototype(value, self.emit_expr(prototype))
 				} else {
@@ -5253,7 +5245,7 @@ impl<'a> Emitter<'a> {
 					)));
 				}
 				let obj = Expression::new_object_expression(SPAN, props, &self.ast);
-				let callee = self.variant_member(enum_name, variant);
+				let callee = self.variant_member(enum_name.as_str(), variant.as_str());
 				let value = self.call1(callee, obj);
 				if let Some(prototype) = prototype {
 					self.set_prototype(value, self.emit_expr(prototype))
@@ -5267,7 +5259,7 @@ impl<'a> Emitter<'a> {
 				variant,
 				prototype,
 			} => {
-				let value = self.variant_member(enum_name, variant);
+				let value = self.variant_member(enum_name.as_str(), variant.as_str());
 				if let Some(prototype) = prototype {
 					self
 						.box_runtime_bindings
@@ -5298,7 +5290,7 @@ impl<'a> Emitter<'a> {
 				);
 				let mut args = ArenaVec::new_in(&self.ast);
 				args.push(Argument::from(self.emit_expr(key)));
-				Expression::new_call_expression(SPAN, member, oxc::ast::NONE, args, false, &self.ast)
+				Expression::new_call_expression(SPAN, member, None, args, false, &self.ast)
 			}
 			HirExpr::Break { target, value } => {
 				let token = self
@@ -5323,7 +5315,7 @@ impl<'a> Emitter<'a> {
 					stmts: ArenaVec::from_value_in(thrown, &self.ast),
 					expr: Expression::new_identifier(SPAN, "undefined", &self.ast),
 				}
-				.into_expression(self.ast)
+				.into_expression(&self.ast)
 			}
 			HirExpr::Continue { target } => {
 				let token = self
@@ -5348,7 +5340,7 @@ impl<'a> Emitter<'a> {
 					stmts: ArenaVec::from_value_in(thrown, &self.ast),
 					expr: Expression::new_identifier(SPAN, "undefined", &self.ast),
 				}
-				.into_expression(self.ast)
+				.into_expression(&self.ast)
 			}
 			// Control-flow expressions in value position collapse to an expression
 			// (an IIFE when they carry leading statements). Mark that we're inside
@@ -5368,7 +5360,7 @@ impl<'a> Emitter<'a> {
 			| HirExpr::For { .. }
 			| HirExpr::Match { .. } => {
 				let prev = self.in_iife_subexpr.replace(true);
-				let result = self.emit_value(expr).into_expression(self.ast);
+				let result = self.emit_value(expr).into_expression(&self.ast);
 				self.in_iife_subexpr.set(prev);
 				result
 			}
@@ -5463,7 +5455,7 @@ impl<'a> Emitter<'a> {
 					stmts: self.finish_return_completion(token, stmts),
 					expr: Expression::new_identifier(SPAN, "undefined", &self.ast),
 				}
-				.into_expression(self.ast)
+				.into_expression(&self.ast)
 			}
 		}
 	}
@@ -5480,7 +5472,7 @@ impl<'a> Emitter<'a> {
 			.map(|argument| self.emit_expr(argument))
 			.collect();
 		if let HirExpr::Field { recv, name } = callee {
-			return self.emit_member_activation(self.emit_expr(recv), name, args, mode, source);
+			return self.emit_member_activation(self.emit_expr(recv), name.as_str(), args, mode, source);
 		}
 		self.emit_target_activation(self.emit_expr(callee), args, mode, source)
 	}
@@ -5495,7 +5487,7 @@ impl<'a> Emitter<'a> {
 	}
 
 	fn zero_argument_arrow(&self, value: Expression<'a>) -> Expression<'a> {
-		let body = FunctionBody::new(
+		let body = ArrowFunctionBody::new_function_body(
 			SPAN,
 			ArenaVec::new_in(&self.ast),
 			ArenaVec::from_value_in(
@@ -5504,23 +5496,14 @@ impl<'a> Emitter<'a> {
 			),
 			&self.ast,
 		);
-		let params = FormalParameters::new(
+		let params = FormalParameters::boxed(
 			SPAN,
 			FormalParameterKind::ArrowFormalParameters,
 			ArenaVec::new_in(&self.ast),
-			oxc::ast::NONE,
+			None,
 			&self.ast,
 		);
-		Expression::new_arrow_function_expression(
-			SPAN,
-			false,
-			false,
-			oxc::ast::NONE,
-			params,
-			oxc::ast::NONE,
-			body,
-			&self.ast,
-		)
+		Expression::new_arrow_function_expression(SPAN, false, None, params, None, body, &self.ast)
 	}
 
 	fn emit_task_operation(
@@ -5656,15 +5639,7 @@ impl<'a> Emitter<'a> {
 	/// `let <name>;` — an uninitialised binding for a control-flow result temporary.
 	fn let_uninit(&self, name: &'a str) -> Statement<'a> {
 		let pat = BindingPattern::new_binding_identifier(SPAN, name, &self.ast);
-		let declarator = VariableDeclarator::new(
-			SPAN,
-			VariableDeclarationKind::Let,
-			pat,
-			oxc::ast::NONE,
-			None,
-			false,
-			&self.ast,
-		);
+		let declarator = VariableDeclarator::new(SPAN, pat, None, None, false, &self.ast);
 		let decl = VariableDeclaration::new(
 			SPAN,
 			VariableDeclarationKind::Let,
@@ -5787,15 +5762,15 @@ impl<'a> Emitter<'a> {
 			Some(CatchParameter::new(
 				SPAN,
 				BindingPattern::new_binding_identifier(SPAN, completion, &self.ast),
-				oxc::ast::NONE,
+				None,
 				&self.ast,
 			)),
-			BlockStatement::new(SPAN, catch_stmts, &self.ast),
+			BlockStatement::boxed(SPAN, catch_stmts, &self.ast),
 			&self.ast,
 		);
 		let try_stmt = Statement::new_try_statement(
 			SPAN,
-			BlockStatement::new(SPAN, body, &self.ast),
+			BlockStatement::boxed(SPAN, body, &self.ast),
 			Some(handler),
 			None::<ArenaBox<'a, BlockStatement<'a>>>,
 			&self.ast,
@@ -5845,7 +5820,9 @@ impl<'a> Emitter<'a> {
 	/// Emit a single HIR statement as a JS statement.
 	fn emit_stmt(&self, stmt: &HirStmt) -> Statement<'a> {
 		match stmt {
-			HirStmt::Let { name, value, .. } => self.binding_declaration(name, self.emit_expr(value)),
+			HirStmt::Let { name, value, .. } => {
+				self.binding_declaration(name.as_str(), self.emit_expr(value))
+			}
 			// A statement-position control-flow expression flattens directly into a
 			// plain JS `BlockStatement` via `block_stmt` (matching how a `while` body
 			// already does), rather than going through `emit_expr`'s subexpression
@@ -6247,7 +6224,7 @@ impl<'a> Emitter<'a> {
 		Expression::new_call_expression(
 			SPAN,
 			member,
-			oxc::ast::NONE,
+			None,
 			ArenaVec::from_value_in(Argument::from(value), &self.ast),
 			false,
 			&self.ast,

@@ -13,7 +13,7 @@ hoopoe-ast = { workspace = true }
 hoopoe-diagnostics = { workspace = true }
 hoopoe-syntax = { workspace = true }
 thiserror = { workspace = true }
-unicode-ident = "1.0.24"
+unicode-ident = "1.0.26"
 unicode-width = "0.2.2"
 
 [lints.clippy]

@@ -12,7 +12,7 @@
 compile_error!("hoopoe-compiler requires the `bundler-swc` feature on wasm32");
 
 #[cfg(all(not(target_arch = "wasm32"), feature = "bundler-rolldown"))]
-use std::{borrow::Cow, sync::Arc};
+use std::borrow::Cow;
 
 #[cfg(all(not(target_arch = "wasm32"), feature = "bundler-rolldown"))]
 use oxc::{allocator::Allocator, parser::Parser, span::SourceType};
@@ -106,7 +106,7 @@ fn bundle_rolldown(entry_key: &str, sources: FxHashMap<String, String>) -> Resul
 		return Ok(entry.clone());
 	}
 
-	let plugin: Arc<dyn rolldown::plugin::Pluginable> = Arc::new(VirtualFsPlugin { sources });
+	let plugin = VirtualFsPlugin::new_shared(VirtualFsPlugin { sources });
 
 	let options = BundlerOptions {
 		input: Some(vec![InputItem {
@@ -147,7 +147,7 @@ fn bundle_rolldown(entry_key: &str, sources: FxHashMap<String, String>) -> Resul
 fn is_valid_esm(source: &str) -> bool {
 	let allocator = Allocator::default();
 	let parsed = Parser::new(&allocator, source, SourceType::mjs()).parse();
-	!parsed.panicked && !parsed.diagnostics.has_errors()
+	!parsed.fatal_error && !parsed.diagnostics.has_errors()
 }
 
 #[cfg(all(

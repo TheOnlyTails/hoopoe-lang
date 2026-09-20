@@ -18,5 +18,5 @@ hoopoe-compiler = { path = "../hoopoe-compiler", default-features = false, featu
 hoopoe-diagnostics.workspace = true
 hoopoe-syntax.workspace = true
 serde = { workspace = true }
-wasm-bindgen = "0.2.126"
+wasm-bindgen = "0.2.128"
 serde-wasm-bindgen = "0.6.5"

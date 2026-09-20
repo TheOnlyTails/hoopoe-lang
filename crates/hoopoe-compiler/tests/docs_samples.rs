@@ -1,5 +1,5 @@
-//! Compile-check fence harness for every ` ```hoo ` code sample under
-//! `docs/**/*.md`.
+//! Compile-check fence harness for every ` ```hoo ` code sample in the
+//! public documentation site.
 //!
 //! This is a data-driven walker: adding, editing, or removing a doc sample
 //! never needs a test edit here, only the right fence tag (`hoo` to be
@@ -84,18 +84,53 @@ fn extract_hoo_fences(markdown: &str) -> Vec<Fence> {
 	fences
 }
 
-/// Recursively collect every `*.md` file under `dir`.
-fn collect_md_files(dir: &Path, out: &mut Vec<PathBuf>) {
+/// These top-level directories match VitePress's `srcExclude` setting. They
+/// contain internal project material rather than pages published on the site.
+const NON_PUBLIC_DOC_DIRS: &[&str] = &["adr", "agents", "design", "research", "superpowers"];
+
+fn is_public_doc_path(docs_dir: &Path, path: &Path) -> bool {
+	let Ok(relative) = path.strip_prefix(docs_dir) else {
+		return false;
+	};
+	let Some(first) = relative.components().next() else {
+		return true;
+	};
+	!NON_PUBLIC_DOC_DIRS
+		.iter()
+		.any(|excluded| first.as_os_str() == *excluded)
+}
+
+/// Recursively collect every public `*.md` file under `dir`.
+fn collect_md_files(docs_dir: &Path, dir: &Path, out: &mut Vec<PathBuf>) {
 	let Ok(entries) = std::fs::read_dir(dir) else {
 		return;
 	};
 	for entry in entries.flatten() {
 		let path = entry.path();
+		if !is_public_doc_path(docs_dir, &path) {
+			continue;
+		}
 		if path.is_dir() {
-			collect_md_files(&path, out);
+			collect_md_files(docs_dir, &path, out);
 		} else if path.extension().is_some_and(|ext| ext == "md") {
 			out.push(path);
 		}
+	}
+}
+
+#[test]
+fn doc_sample_paths_match_the_public_site_boundary() {
+	let docs = Path::new("/repo/docs");
+	assert!(is_public_doc_path(docs, &docs.join("reference/types.md")));
+	assert!(is_public_doc_path(docs, &docs.join("index.md")));
+	for internal_dir in ["adr", "agents", "design", "research", "superpowers"] {
+		assert!(
+			!is_public_doc_path(
+				docs,
+				&docs.join(internal_dir).join("example-with-hoo-fence.md")
+			),
+			"{internal_dir} is excluded from the public VitePress site"
+		);
 	}
 }
 
@@ -284,7 +319,7 @@ fn every_doc_sample_is_covered() {
 	let mut session_count = 1;
 
 	let mut md_files = Vec::new();
-	collect_md_files(&docs_dir, &mut md_files);
+	collect_md_files(&docs_dir, &docs_dir, &mut md_files);
 	assert!(
 		!md_files.is_empty(),
 		"expected to find at least one markdown file under {docs_dir:?}"

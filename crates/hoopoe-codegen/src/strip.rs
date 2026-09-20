@@ -57,7 +57,7 @@ pub fn inspect_embedded_module(source: &str) -> EmbeddedModuleInspection {
 	let allocator = Allocator::default();
 	let parsed = Parser::new(&allocator, source, SourceType::ts()).parse();
 	assert!(
-		!parsed.panicked && !parsed.diagnostics.has_errors(),
+		!parsed.fatal_error && !parsed.diagnostics.has_errors(),
 		"inspect_embedded_module: failed to parse embedded stdlib TS source: {:?}",
 		parsed.diagnostics
 	);
@@ -85,8 +85,8 @@ pub fn inspect_embedded_module(source: &str) -> EmbeddedModuleInspection {
 					unsupported_imports.push(import.source.value.to_string());
 				}
 			}
-			Statement::ExportNamedDeclaration(export) => {
-				if let Some(Declaration::VariableDeclaration(variable)) = &export.declaration {
+			Statement::ExportDeclaration(export) => {
+				if let Declaration::VariableDeclaration(variable) = &export.declaration {
 					for declaration in &variable.declarations {
 						if let Some(binding) = declaration.id.get_binding_identifier() {
 							exported_bindings.push(binding.name.to_string());
@@ -117,7 +117,7 @@ pub fn strip_ts_to_js(source: &str, keep: &[&str], import_rewrites: &[(&str, &st
 	let allocator = Allocator::default();
 	let parser_ret = Parser::new(&allocator, source, SourceType::ts()).parse();
 	assert!(
-		!parser_ret.panicked && !parser_ret.diagnostics.has_errors(),
+		!parser_ret.fatal_error && !parser_ret.diagnostics.has_errors(),
 		"strip_ts_to_js: failed to parse embedded stdlib TS source: {:?}",
 		parser_ret.diagnostics
 	);
@@ -165,8 +165,8 @@ pub fn strip_ts_to_js(source: &str, keep: &[&str], import_rewrites: &[(&str, &st
 		.collect();
 
 	program.body.retain(|stmt| {
-		matches!(stmt, Statement::ExportNamedDeclaration(export)
-		if matches!(&export.declaration, Some(Declaration::VariableDeclaration(var))
+		matches!(stmt, Statement::ExportDeclaration(export)
+		if matches!(&export.declaration, Declaration::VariableDeclaration(var)
 			if var.declarations.iter().any(|decl| {
 				decl.id.get_binding_identifier()
 					.is_some_and(|binding| keep.contains(&binding.name.as_str()))
