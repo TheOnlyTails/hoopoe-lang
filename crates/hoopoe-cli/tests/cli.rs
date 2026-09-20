@@ -224,7 +224,7 @@ fn expand_prints_plain_formatted_source_and_is_deterministic() {
 }
 
 #[test]
-fn expand_applies_direct_nested_and_independent_attached_macros() {
+fn expand_applies_direct_nested_and_stacked_extend_macros() {
 	let root = write_project(
 		"main.hoo",
 		"const func integer(): meta.Tokens = \\(int)\n\
@@ -242,7 +242,7 @@ fn expand_applies_direct_nested_and_independent_attached_macros() {
 	let point = output.stdout.find("struct Point").unwrap();
 	let first = output.stdout.find("func first_helper").unwrap();
 	let second = output.stdout.find("func second_helper").unwrap();
-	assert!(point < first && first < second, "{}", output.stdout);
+	assert!(point < second && second < first, "{}", output.stdout);
 	assert!(!output.stdout.contains("const func"));
 	assert!(!output.stdout.contains("$("));
 	assert!(!output.stdout.contains("@extend"));
@@ -271,6 +271,29 @@ fn expand_reaches_the_generated_import_fixed_point() {
 		output.stdout
 	);
 	assert!(output.stdout.contains("func result(): int = answer()"));
+	std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn expand_fully_expands_a_macro_call_emitted_by_another_macro() {
+	let root = write_project(
+		"main.hoo",
+		"const func value(): meta.Tokens = \\(42)\n\
+		 const func generated(): meta.Tokens = meta.Tokens(items = #[\
+		   meta.Token.Func,\
+		   meta.Token.Identifier(value = \"answer\"),\
+		   meta.Token.LParen, meta.Token.RParen,\
+		   meta.Token.Colon, meta.Token.IntType, meta.Token.Eq,\
+		   meta.Token.Dollar, meta.Token.Identifier(value = \"value\"),\
+		   meta.Token.LParen, meta.Token.RParen,\
+		 ])\n\
+		 $(generated())\n",
+	);
+	let output = hoopoe_in(&["expand", "main"], &root);
+	assert!(output.status.success(), "{}", output.stderr);
+	assert_eq!(output.stderr, "");
+	assert_eq!(output.stdout, "func answer(): int = 42\n");
+	assert!(!output.stdout.contains('$'));
 	std::fs::remove_dir_all(root).unwrap();
 }
 
