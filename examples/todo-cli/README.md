@@ -1,25 +1,35 @@
 # todo-cli
 
-A command-line task manager: `todo add "buy milk"`, `todo done 1`, `todo list`.
+A persistent command-line task manager: `todo add "buy milk"`, `todo done 1`, and
+`todo list`.
 
-The focus here is the shape of a real CLI:
+The example treats the planned host APIs as complete while following the design
+work already established around them:
 
-- **Parse arguments into a typed `Command`** — a single `match` over the argument
-  list turns `#["add", ...words]`, `#["done", id]`, `#["list"]` into an `enum`,
-  returning a `Result` so a bad invocation produces a clear message instead of a
-  crash.
-- **List patterns** — `#["add", ...words]` peels the subcommand off the front and
-  binds the remainder; `#[other, ...]` catches anything unrecognized.
-- **Immutable state transitions** — `Store.add` and `Store.complete` return new
-  stores. Persistent list append and struct spread leave their inputs unchanged.
-- **Named destinations** — enum construction and matching identify payload fields
-  explicitly, for example `Some(value = n)` and `Complete(id = n)`.
+- `std/os.args()` supplies command-line arguments.
+- Task-based `std/fs.read_text` and `write_text` operate on `Path` values and
+  return typed failures.
+- `std/codec/json` derives typed codecs rather than adding filesystem-specific
+  `read_json` and `write_json` shortcuts.
+- Iterator `map(...).to_list()` rebuilds the immutable todo list.
+- Filesystem and codec failures become `StoreError` values and propagate with
+  postfix `?`; only a missing store file is handled as an empty store.
 
-```sh
-hoo run
-# [x] #1 write the compiler
+The persistence model stays ordinary Hoopoe data:
+
+```hoo
+@extend(derive_json())
+struct Todo(id: int, title: string, done: boolean)
+
+@extend(derive_json())
+struct Store(todos: #[Todo], next_id: int)
 ```
 
-**Status:** ✅ The project checks and its deterministic demonstration runs today.
-The parser remains a reusable pure function; `main` supplies fixed input so its
-output is suitable for exact producer tests.
+Arguments become a typed `Command` through list patterns and `Result`, and
+implemented functions rely on return inference.
+
+**Status:** 🚧 Design target. The filesystem and codec threads established these
+directions but did not settle their final public contracts; `std/os`, `std/fs`,
+and `std/codec/json` have not been migrated. It also uses the new `@extend(...)`
+attachment syntax, which has not landed in this checkout, so this source is not
+yet parser-, formatter-, or compiler-checked here.

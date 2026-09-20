@@ -1,17 +1,84 @@
 import std/io with (println)
-enum Method {
-	Get,
-	Post,
+import std/http with (
+	Handler,
+	Headers,
+	Method,
+	Request,
+	Response,
+	ResponseBody,
+	Route,
+	Router,
+	Status,
+	bind_default,
+	serve,
+)
+import std/net with (Network, SocketAddress)
+
+enum Endpoint {
+	Home,
+	Health,
+	Echo,
 }
 
-func route(method: Method, path: string) = match (#(method, path)) {
-	#(Method.Get, requested) if requested == "/health" -> "200 ok",
-	#(Method.Get, requested) if requested == "/" -> "200 welcome",
-	_ -> "404 not found",
+func text(status: Status, body: string) = Response(
+	status = status,
+	headers = Headers.from_pairs(#[#(
+		"content-type",
+		"text/plain; charset=utf-8",
+	)]),
+	body = ResponseBody.Text(value = body),
+)
+
+impl Handler<!Network> for Endpoint {
+	async func handle(request: Request) = match (this) {
+		Home -> Response.text("Welcome to Hoopoe 👋"),
+		Health -> Response.text("ok"),
+		Echo -> match (request.body.read_all_default().await) {
+			Ok(value = body) -> match (body.to_utf8()) {
+				Some(value = body) -> Response.text(body),
+				None -> text(Status.BadRequest, "request body is not UTF-8"),
+			},
+			Error(...) -> text(Status.BadRequest, "could not read request body"),
+		},
+	}
 }
 
-/// A bounded service smoke: exercise requests and terminate deterministically.
-func main() = {
-	println(route(Method.Get, "/health"))
-	println(route(Method.Post, "/missing"))
+struct App(router: Router<Endpoint>)
+
+impl Handler<!Network> for App {
+	async func handle(request: Request) = {
+		let path = match (request.target.parse()) {
+			Some(value = uri) -> uri.path,
+			None -> request.target.raw,
+		}
+
+		match (this.router.find(request.method, path)) {
+			Some(value = endpoint) -> endpoint.handle(request).await,
+			None -> text(Status.NotFound, "not found: ${path}"),
+		}
+	}
+}
+
+func routes() = Router.from_routes(#[
+	Route(
+		method = Method.Get,
+		path = "/",
+		handler = Home,
+	),
+	Route(
+		method = Method.Get,
+		path = "/health",
+		handler = Health,
+	),
+	Route(
+		method = Method.Post,
+		path = "/echo",
+		handler = Echo,
+	),
+])
+
+async func main() = {
+	let listener = bind_default(SocketAddress.loopback_v4(8080u)).await?
+	println("listening on http://127.0.0.1:8080")
+	serve(listener, App(router = routes())).await
 }

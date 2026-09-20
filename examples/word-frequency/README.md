@@ -1,23 +1,25 @@
 # word-frequency
 
-Build a persistent word-count map and print its five most common entries.
-
-The example builds its counts through persistent map updates: each binding is a
-new map, while every prior map remains valid.
+Read a document, count normalized words in a persistent map, and print the five
+most common entries.
 
 ```hoo
-let counts: #{string: int} = #{}
-let counts = counts.inserted("the", 4)
-let counts = counts.inserted("fox", 2)
+let counts = text
+  .replace("\n", " ")
+  .split(" ")
+  .iter()
+  .map((word) -> word.trim().to_lower())
+  .filter((word) -> !word.is_empty())
+  .fold(#{}, (counts: #{string: int}, word) ->
+    counts.inserted(word, (counts.get(word) ?? 0) + 1))
 ```
 
-The bounded sample uses deterministic input and output so its runtime check does
-not depend on files, locale, or unstable map traversal order.
+The pipeline is lazy until `fold` consumes it. Each insertion returns a new map;
+older maps remain unchanged. Ranking starts from `counts.entries().iter()` and
+uses the implemented `sorted_by(...).take(5u)` iterator adapters. `main` uses
+postfix `?` to preserve filesystem failures for the executable root.
 
-Also on display:
-
-- **Persistent maps** — each `inserted` call returns the next map while the source
-  map remains valid and unchanged.
-- **Deterministic output** — the example has exact expected stdout and status.
-
-**Status:** ✅ Runs today with deterministic built-in input.
+**Status:** 🚧 Design target. The iterator pipeline uses today's API. The
+task-based `std/fs.read_text(Path)` call follows the filesystem design direction,
+but that module's final public contract has not been settled or migrated. The
+source is format-checked but not compiler-checked.

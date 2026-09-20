@@ -1,9 +1,11 @@
 import std/io with (println)
+import std/os with (args)
+import std/fs with (FsError, FsErrorKind, Path, read_text, write_text)
+import std/codec with (CodecError)
+import std/codec/json with (decode, derive_json, encode)
+@extend(derive_json())
+struct Todo(id: int, title: string, done: boolean)
 
-/// One todo item.
-struct Task(id: int, title: string, done: boolean)
-
-/// The intent parsed out of the command line.
 enum Command {
 	Add(title: string),
 	Complete(id: int),
@@ -11,57 +13,102 @@ enum Command {
 	Help,
 }
 
-/// Turn raw arguments into a `Command`, or explain why we couldn't. List patterns
+enum StoreError {
+	Filesystem(error: FsError),
+	Codec(error: CodecError),
+}
 
-/// (`#["add", ...words]`) match the subcommand and split off the rest.
 func parse(argv: #[string]) = match (argv) {
-	#["add", ...words] -> if (words.length() == 0) Error(error = "`add` needs a title") else Ok(value = Command.Add(title = words.join(" "))),
-	#["done", "1"] -> Ok(value = Command.Complete(id = 1)),
-	#["done", id] -> Error(error = "`done` needs a numeric id, got `${id}`"),
+	#["add", ...words] -> if (words.is_empty()) Error(error = "`add` needs a title") else Ok(value = Command.Add(title = words.join(" "))),
+	#["done", id] -> match (id.to_int()) {
+		Some(value = number) -> Ok(value = Command.Complete(id = number)),
+		None -> Error(error = "`done` needs a numeric id, got `${id}`"),
+	},
 	#["list"] -> Ok(value = Command.List),
 	#["help"] -> Ok(value = Command.Help),
 	#[] -> Ok(value = Command.Help),
 	#[other, ...] -> Error(error = "unknown command `${other}` — try `help`"),
-	_ -> Error(error = "invalid arguments — try `help`"),
 }
 
-/// The app's state. Updates return a new value; prior stores remain unchanged.
-struct Store(tasks: #[Task], next_id: int)
+@extend(derive_json())
+struct Store(todos: #[Todo], next_id: int) {
+	namespace func empty() = Store(todos = #[], next_id = 1)
 
-impl Store {
-	namespace func empty() = Store(tasks = #[], next_id = 1)
+	func add(title: string) = Store(
+		todos = this.todos.appended(Todo(
+			id = this.next_id,
+			title = title,
+			done = false,
+		)),
+		next_id = this.next_id + 1,
+	)
 
-	func add(title: string) = {
-		let id = this.next_id
-		Store(
-			tasks = this.tasks.appended(Task(id = id, title = title, done = false)),
-			next_id = id + 1,
-		)
-	} /// Mark a task done by returning a rebuilt store.
-	func complete(id: int) = if (this.tasks.any((task) -> task.id == id)) Ok(value = Store(
-		tasks = this.tasks.iter().map((task) -> if (task.id == id) Task(
-			...task,
+	func complete(id: int) = if (this.todos.any((todo) -> todo.id == id)) Ok(value = Store(
+		todos = this.todos.iter().map((todo) -> if (todo.id == id) Todo(
+			...todo,
 			done = true,
-		) else task).to_list(),
+		) else todo).to_list(),
 		next_id = this.next_id,
-	)) else Error(error = "no task with id ${id}")
+	)) else Error(error = "no todo with id ${id}")
 
-	func render() = if (this.tasks.length() == 0) "no tasks yet — add one with `todo add <title>`" else this.tasks.iter().map((task) -> {
-		let mark = if (task.done) "[x]" else "[ ]"
-		"${mark} #${task.id} ${task.title}"
+	func render() = if (this.todos.is_empty()) "no todos yet — add one with `todo add <title>`" else this.todos.iter().map((todo) -> {
+		let mark = if (todo.done) "[x]" else "[ ]"
+		"${mark} #${todo.id} ${todo.title}"
 	}).to_list().join("\n")
+}
+
+async func load(path: Path) = {
+	let source = match (read_text(path).await) {
+		Ok(value = source) -> Ok(value = source),
+		Error(error = error) if error.kind == FsErrorKind.NotFound -> break@load Ok(value = Store.empty()),
+		Error(error = error) -> Error(error = StoreError.Filesystem(error = error)),
+	}?
+	let store: Store = decode(source).map_err((error) -> StoreError.Codec(error = error))?
+	Ok(value = store)
+}
+
+async func save(path: Path, store: Store) = {
+	let source: string = encode(store).map_err((error) -> StoreError.Codec(error = error))?
+	write_text(path, source).await.map_err((error) -> StoreError.Filesystem(error = error))
+}
+
+func describe(error: StoreError) = match (error) {
+	Filesystem(...) -> "filesystem error",
+	Codec(...) -> "invalid todo data",
 }
 
 func usage() = "todo — a tiny task manager
 
-  todo add <title>   add a task
-  todo done <id>     mark a task complete
-  todo list          show all tasks
+  todo add <title>   add a todo
+  todo done <id>     mark a todo complete
+  todo list          show all todos
   todo help          show this message"
 
-func main() = {
-	let empty = Store.empty()
-	let added = empty.add("write the compiler")
-	let completed = added.complete(1) ?? added
-	println(completed.render())
+async func main() = {
+	let path = Path.from_string("todo.json")
+	match (load(path).await) {
+		Ok(value = store) -> match (parse(args())) {
+			Ok(value = Add(title = title)) -> {
+				let store = store.add(title)
+				match (save(path, store).await) {
+					Ok(...) -> println("added #${store.next_id - 1}: ${title}"),
+					Error(error = error) -> println("error: ${describe(error)}"),
+				}
+			},
+			Ok(value = Complete(id = id)) -> match (store.complete(id)) {
+				Ok(value = store) -> match (save(path, store).await) {
+					Ok(...) -> println("completed #${id}"),
+					Error(error = error) -> println("error: ${describe(error)}"),
+				},
+				Error(error = message) -> println("error: ${message}"),
+			},
+			Ok(value = List) -> println(store.render()),
+			Ok(value = Help) -> println(usage()),
+			Error(error = message) -> {
+				println("error: ${message}")
+				println(usage())
+			},
+		},
+		Error(error = error) -> println("error: ${describe(error)}"),
+	}
 }

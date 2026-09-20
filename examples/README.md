@@ -1,13 +1,13 @@
 # Hoopoe examples
 
-A gallery of small, idiomatic Hoopoe projects — the kind of thing you'd reach for
-the language to build. They double as a north star for the language and standard
-library: they show the _surface we're aiming at_, written the way we want Hoopoe to
-read.
+A gallery of small, idiomatic Hoopoe projects. Some run against today's standard
+library. Others intentionally use planned APIs as if they already existed, so the
+examples also define the language and library we are building toward.
 
-Every checked-in example is a compiler-checked project. Programs use immutable
-values and explicit executable roots; runnable examples are deterministic, and the
-service-shaped example is deliberately bounded so smoke checks always terminate.
+Examples marked as runnable parse, follow the canonical format, compile, and run
+under exact-output tests. Design targets may use language or standard-library work
+that has not landed in this checkout yet; they become checked examples as those
+pieces are migrated.
 
 ## Project layout
 
@@ -42,14 +42,14 @@ hoo run --manifest examples/hello-world/hoopoe.toml
 
 ## The examples
 
-| Example                              | What it shows                                                               | Ambient today?         |
+| Example                              | What it shows                                                               | Status                 |
 | ------------------------------------ | --------------------------------------------------------------------------- | ---------------------- |
 | [`hello-world`](./hello-world)       | The smallest program — `println` from `std/io`.                             | ✅ runs                |
 | [`fizzbuzz`](./fizzbuzz)             | Ranges, `match`, guards, string interpolation — no imports beyond `std/io`. | ✅ runs                |
 | [`shapes`](./shapes)                 | Enums, interfaces + `impl`, generics, exhaustive `match`. Pure language.    | ✅ runs                |
-| [`word-frequency`](./word-frequency) | Persistent maps and a lazy iterator pipeline with stable sorting.           | ✅ runs                |
-| [`todo-cli`](./todo-cli)             | Typed command parsing and immutable state transitions.                      | ✅ runs                |
-| [`http-server`](./http-server)       | A bounded routing/service smoke.                                            | ✅ runs and terminates |
+| [`word-frequency`](./word-frequency) | Task-based file input, persistent maps, and a lazy iterator pipeline.       | 🚧 planned `std/fs`    |
+| [`todo-cli`](./todo-cli)             | Arguments, typed commands, JSON persistence, and immutable updates.         | 🚧 planned host APIs   |
+| [`http-server`](./http-server)       | Immutable routing, typed requests and responses, and one-shot bodies.       | 🚧 HTTP migration      |
 
 ## Language features on display
 

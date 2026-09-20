@@ -1,29 +1,32 @@
 # http-server
 
-A bounded model of an HTTP router. It exercises service routing without opening a
-socket or leaving an unbounded process behind.
+A small HTTP/1.1 service built against the designed immutable `std/http` and
+`std/net` APIs.
 
-The whole router is one `match`, keyed on the **method and path together**:
+Routes are ordinary persistent values. Constructing the router and calling
+`bind_default` create cold recipes; network work starts when `main` awaits them.
 
 ```hoo
-func route(method: Method, path: string) = match (#(method, path)) {
-  #(Method.Get, requested) if requested == "/health" -> "200 ok",
-  #(Method.Get, requested) if requested == "/" -> "200 welcome",
-  _ -> "404 not found",
-}
+func routes() = Router.from_routes(#[
+  Route(method = Method.Get, path = "/", handler = Home),
+  Route(method = Method.Get, path = "/health", handler = Health),
+  Route(method = Method.Post, path = "/echo", handler = Echo),
+])
 ```
 
-What it shows:
-
-- **`Method` as an enum** — matching `Method.Get`/`Method.Post` is exhaustive and
-  typo-proof, unlike matching on strings.
-- **Handlers are plain functions** — the router is independently testable.
+The echo handler reads the one-shot request body with the standard 8 MiB limit
+and accepts only valid UTF-8. `App` implements `Handler<!Network>`, so `serve`
+can run it for each accepted exchange. `main` propagates bind and serving failures
+with postfix `?` so the executable root reports them consistently.
 
 ```sh
 hoo run
-# 200 ok
-# 404 not found
+# listening on http://127.0.0.1:8080
+
+curl --data 'Hello!' http://127.0.0.1:8080/echo
+# Hello!
 ```
 
-**Status:** ✅ Runs today and terminates after two requests. A future host-backed
-server can reuse the pure router while keeping smoke tests bounded.
+**Status:** 🚧 Design target. These APIs were designed and implemented before
+the language rework, but their modules have not yet been migrated to the current
+standard-library tree. The source is format-checked but not compiler-checked.
