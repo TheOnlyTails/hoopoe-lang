@@ -6,9 +6,9 @@ socket or leaving an unbounded process behind.
 The whole router is one `match`, keyed on the **method and path together**:
 
 ```hoo
-func route(method: Method, path: string): string = match (#(method, path)) {
-  #(Method.Get, "/health") -> "200 ok",
-  #(Method.Get, "/") -> "200 welcome",
+func route(method: Method, path: string) = match (#(method, path)) {
+  #(Method.Get, requested) if requested == "/health" -> "200 ok",
+  #(Method.Get, requested) if requested == "/" -> "200 welcome",
   _ -> "404 not found",
 }
 ```

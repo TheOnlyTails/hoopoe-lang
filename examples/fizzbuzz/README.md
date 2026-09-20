@@ -8,7 +8,7 @@ matches on a **tuple of both remainders** at once, so every rule is one arm and 
 "both" case naturally comes first.
 
 ```hoo
-func fizzbuzz(n: int): string = match (#(n % 3, n % 5)) {
+func fizzbuzz(n: int) = match (#(n % 3, n % 5)) {
   #(0, 0) -> "FizzBuzz",
   #(0, _) -> "Fizz",
   #(_, 0) -> "Buzz",

@@ -13,13 +13,14 @@ service-shaped example is deliberately bounded so smoke checks always terminate.
 
 Every example is a self-contained project: a `hoopoe.toml` manifest at the root and
 sources under `src/`, with `src/main.hoo` as the entry module. Its `main()` function
-(no arguments, returning `void`) is the program's entry point.
+takes no arguments and is the program's entry point; the compiler infers its `void`
+return type.
 
 ```
 todo-cli/
   hoopoe.toml        # name, version, dependencies
   src/
-    main.hoo        # func main(): void = { … }
+    main.hoo        # func main() = { … }
 ```
 
 Run one from its project directory with:
@@ -60,6 +61,8 @@ hoo run --manifest examples/hello-world/hoopoe.toml
   including the ambient operator prelude (`Plus`, `Comparable`, …).
 - **Persistent updates** — collection updates and struct spreads return new values;
   existing values remain unchanged.
+- **Return inference** — implemented functions omit return annotations when their
+  bodies determine the type; bodyless interface methods state their contracts.
 - **Lazy iteration** — `map`/`filter`/`take`/`fold` defined once on `Iterator`,
   composing without intermediate allocation.
 - **Compiles to clean JavaScript** — the whole thing runs on any JS runtime.

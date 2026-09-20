@@ -120,19 +120,36 @@ fn example_manifest(name: &str) -> std::path::PathBuf {
 		.join("hoopoe.toml")
 }
 
+fn example_manifests() -> Vec<(String, std::path::PathBuf)> {
+	let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
+	let mut manifests = std::fs::read_dir(root)
+		.unwrap()
+		.map(Result::unwrap)
+		.filter_map(|entry| {
+			let manifest = entry.path().join("hoopoe.toml");
+			manifest
+				.is_file()
+				.then(|| (entry.file_name().to_string_lossy().into_owned(), manifest))
+		})
+		.collect::<Vec<_>>();
+	manifests.sort_by(|left, right| left.0.cmp(&right.0));
+	manifests
+}
+
 #[test]
-fn every_example_manifest_checks() {
-	for name in [
-		"fizzbuzz",
-		"hello-world",
-		"http-server",
-		"shapes",
-		"todo-cli",
-		"word-frequency",
-	] {
-		let manifest = example_manifest(name);
+fn every_example_is_formatted_and_checks() {
+	for (name, manifest) in example_manifests() {
+		let formatted = hoopoe(&[
+			"format",
+			"--check",
+			"--manifest",
+			manifest.to_str().unwrap(),
+		]);
+		assert!(formatted.status.success(), "{name}: {}", formatted.stderr);
+
 		let out = hoopoe(&["check", "--manifest", manifest.to_str().unwrap()]);
 		assert!(out.status.success(), "{name}: {}", out.stderr);
+		assert_eq!(out.stderr, "", "{name}");
 	}
 }
 
