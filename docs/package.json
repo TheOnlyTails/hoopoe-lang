@@ -20,7 +20,7 @@
 	},
 	"devDependencies": {
 		"markdown-it-mathjax3": "^5.2.0",
-		"vitepress": "2.0.0-alpha.15",
+		"vitepress": "2.0.0-alpha.20",
 		"vue": "^3.5.40",
 		"wasm-pack": "^0.15.0",
 		"wrangler": "4.129.0"
