@@ -11,7 +11,7 @@ func route(method: Method, path: string) = match (#(method, path)) {
 }
 
 /// A bounded service smoke: exercise requests and terminate deterministically.
-func main () = {
+func main() = {
 	println(route(Method.Get, "/health"))
 	println(route(Method.Post, "/missing"))
 }

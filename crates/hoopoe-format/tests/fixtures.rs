@@ -117,6 +117,19 @@ fn formats_async_function_block_and_await_without_changing_their_tokens() {
 }
 
 #[test]
+fn unparenthesized_match_guard_does_not_change_next_function_spacing() {
+	let source = "enum Method { Get, Post }\n\
+		func route(method: Method, path: string) = match (#(method, path)) {\n\
+		#(Method.Get, requested) if requested == \"/\" -> \"ok\",\n\
+		_ -> \"missing\",\n\
+		}\n\
+		func main() = {}\n";
+	let formatted = format(source, "guard.hoo").expect("guard source formats");
+	assert!(formatted.contains("\nfunc main() = {}\n"), "{formatted}");
+	assert_eq!(format(&formatted, "guard.hoo").unwrap(), formatted);
+}
+
+#[test]
 fn formats_immutable_state_headers_and_named_continue_arguments() {
 	let source =
 		"func cycle()=loop@outer(let left=1,let right=2){continue@outer(left=right,right=left)}";

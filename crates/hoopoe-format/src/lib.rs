@@ -1260,6 +1260,10 @@ impl<'a> Formatter<'a> {
 		if self.depth == 0 && token == "import" {
 			self.in_import = true;
 		}
+		let continues_control_header = matches!(token, "(" | "@") || self.previous == Some("@");
+		if self.control_pending && !continues_control_header {
+			self.control_pending = false;
+		}
 		if token == "match" {
 			self.match_pending = true;
 		}
