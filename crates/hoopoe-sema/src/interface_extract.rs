@@ -126,6 +126,7 @@ fn stable_source_name(name: &str, span: Span) -> EcoString {
 		hoopoe_ast::SyntaxContext::Fresh { origin, index } => {
 			format!("{name}$fresh${}${index}", origin.0).into()
 		}
+		hoopoe_ast::SyntaxContext::Contextual(_) => name.into(),
 	}
 }
 

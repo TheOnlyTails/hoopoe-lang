@@ -32,6 +32,21 @@ impl OriginId {
 	pub const SOURCE: Self = Self(0);
 }
 
+/// Stable identity for the runtime value referenced by `this` in quoted metadata.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, salsa::SalsaValue)]
+pub struct ContextualValueId(pub u64);
+
+impl ContextualValueId {
+	pub fn new(module: &str, owner: &str) -> Self {
+		let mut hash = 0xcbf29ce484222325u64;
+		for byte in module.bytes().chain([0]).chain(owner.bytes()) {
+			hash ^= u64::from(byte);
+			hash = hash.wrapping_mul(0x100000001b3);
+		}
+		Self(hash)
+	}
+}
+
 /// The name-resolution context carried by every token and identifier span.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, salsa::SalsaValue)]
 pub enum SyntaxContext {
@@ -44,6 +59,7 @@ pub enum SyntaxContext {
 		index: u32,
 	},
 	Exposed(OriginId),
+	Contextual(ContextualValueId),
 }
 
 /// A half-open byte range `[start, end)` into a source file.

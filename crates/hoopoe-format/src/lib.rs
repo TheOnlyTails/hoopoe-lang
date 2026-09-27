@@ -210,6 +210,7 @@ fn format_fragment(source: &str) -> String {
 #[derive(Default)]
 struct Hints {
 	line_before: HashSet<usize>,
+	metadata_boundaries: HashSet<usize>,
 	comma_after: HashSet<usize>,
 	blocks: HashSet<usize>,
 	matches: HashSet<usize>,
@@ -227,7 +228,10 @@ impl Hints {
 		for attribute in &module.attributes {
 			if let Some(at) = source[..attribute.namespace.1.start].rfind('@') {
 				hints.line_before.insert(at);
+				hints.metadata_boundaries.insert(at);
 			}
+			hints.line_before.insert(attribute.target.start);
+			hints.metadata_boundaries.insert(attribute.target.start);
 			hints.visit_expr(source, &attribute.value, true);
 		}
 		for declaration in &module.members {
@@ -251,6 +255,7 @@ impl Hints {
 			width: usize,
 			has_comma: bool,
 			has_line_comment: bool,
+			has_metadata: bool,
 		}
 
 		let mut scanner = Scanner::new(source);
@@ -274,6 +279,11 @@ impl Hints {
 					}
 				}
 				if self.line_before.contains(&item.start) {
+					if self.metadata_boundaries.contains(&item.start)
+						&& let Some(candidate) = stack.last_mut()
+					{
+						candidate.has_metadata = true;
+					}
 					line_width = 0;
 				}
 				let item_width = display_width(item.text);
@@ -313,6 +323,7 @@ impl Hints {
 						width: line_width,
 						has_comma: false,
 						has_line_comment: false,
+						has_metadata: false,
 					});
 					depth += 1;
 				}
@@ -335,8 +346,8 @@ impl Hints {
 					let candidate = stack.pop().expect("candidate exists");
 					depth = depth.saturating_sub(1);
 					if candidate.opener != "{"
-						&& candidate.has_comma
-						&& (candidate.width > WIDTH || candidate.has_line_comment)
+						&& (candidate.has_metadata
+							|| candidate.has_comma && (candidate.width > WIDTH || candidate.has_line_comment))
 					{
 						self.multiline_lists.insert(candidate.open, item.start);
 					}
@@ -356,6 +367,9 @@ impl Hints {
 			}
 			Declaration::Attached { macros, target, .. } => {
 				for call in macros {
+					if let Some(at) = source[..call.span.start].rfind('@') {
+						self.line_before.insert(at);
+					}
 					self.visit_expr(source, call, true);
 				}
 				self.visit_declaration(source, target);

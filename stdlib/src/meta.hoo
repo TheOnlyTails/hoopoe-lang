@@ -13,6 +13,7 @@ public enum SyntaxContext {
   CallSite(origin: uint),
   Fresh(origin: uint, index: uint),
   Exposed(origin: uint),
+  Contextual(id: uint),
 }
 public struct Span(start: uint, end: uint, context: SyntaxContext, origin: uint)
 public struct Name(text: string, span: Span)
@@ -128,7 +129,9 @@ public struct Diagnostic(message: string, span: Span)
 // Syntax-shaped fields remain immutable and token conversion preserves their identity.
 // Every meaningful syntax type below is compiler-adapted to `Into<Tokens>`; direct
 // expansion/interpolation therefore does not require an explicit `.tokens()` call.
-public struct Expression(tokens: Tokens, span: Span)
+// Metadata options typed as Expression<T> accept token quotes directly. In those quotes,
+// `this` refers to the annotated struct, enum variant, or field's runtime value.
+public struct Expression<T>(tokens: Tokens, span: Span)
 public struct Statement(tokens: Tokens, span: Span)
 public struct Pattern(tokens: Tokens, span: Span)
 public struct Type(tokens: Tokens, span: Span)

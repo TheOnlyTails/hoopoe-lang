@@ -152,9 +152,12 @@ impl Parser<'_> {
 	fn parse_reference_type(&mut self) -> Spanned<Type> {
 		let start = self.position();
 		let name = self.expect_ident();
-		let generics = self.parse_generic_args();
+		let mut generics = self.parse_generic_args();
 		if self.eat(&Token::Dot).is_some() {
 			let variant = self.expect_ident();
+			if generics.is_empty() {
+				generics = self.parse_generic_args();
+			}
 			Spanned(
 				Type::Reference {
 					name: Spanned(

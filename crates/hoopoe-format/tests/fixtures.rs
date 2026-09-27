@@ -185,6 +185,31 @@ fn formats_metaprogramming_without_rewriting_captured_tokens() {
 }
 
 #[test]
+fn places_attached_macros_and_metadata_above_their_targets() {
+	let source = "@extend(computed()) struct Reading(@computed.value=\\($(this.raw)*2) raw:int)\n@extend(ranked()) enum Signal{@ranked.score=\\($(this.value)+100) Hit(value:int)}";
+	let formatted = format(source, "attributes.hoo").expect("attribute source formats");
+	assert_eq!(
+		formatted,
+		"@extend(computed())\n\
+		struct Reading(\n\
+		\t@computed.value = \\($(this.raw) * 2)\n\
+		\traw: int,\n\
+		)\n\
+		@extend(ranked())\n\
+		enum Signal {\n\
+		\t@ranked.score = \\($(this.value) + 100)\n\
+		\tHit(value: int),\n\
+		}\n"
+	);
+	parse_clean(&formatted, Path::new("attributes.hoo"));
+	assert_eq!(format(&formatted, "attributes.hoo").unwrap(), formatted);
+	assert_eq!(
+		semantic_fingerprint(source),
+		semantic_fingerprint(&formatted)
+	);
+}
+
+#[test]
 fn formats_shorthand_expansion_without_rewriting_it_to_long_form() {
 	let source = "const func make(value:int,name:int):meta.Tokens=\\(func answer():int=$(value))\n$make( 1,name=2 )";
 	let formatted = format(source, "shorthand-metaprogramming.hoo")

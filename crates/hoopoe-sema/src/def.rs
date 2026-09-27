@@ -42,6 +42,7 @@ impl NameKey {
 			}
 			SyntaxContext::Definition(definition) => NameContext::Definition(definition),
 			SyntaxContext::Fresh { origin, index } => NameContext::Fresh { origin, index },
+			SyntaxContext::Contextual(_) => NameContext::Caller,
 		};
 		Self {
 			text: text.into(),

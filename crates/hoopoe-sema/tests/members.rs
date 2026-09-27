@@ -48,6 +48,14 @@ fn inherent_method_with_this() {
 }
 
 #[test]
+fn narrowed_enum_variant_values_expose_their_fields() {
+	assert_ok(
+		"enum Choice { Item(value: int) }\n\
+		 func read(item: Choice.Item): int = item.value",
+	);
+}
+
+#[test]
 fn inherent_method_omitted_return_infers_from_body() {
 	// `value()` has no return annotation; its type is inferred from the body and
 	// callers must see `int` (the shared return variable).

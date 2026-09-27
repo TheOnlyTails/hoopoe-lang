@@ -97,6 +97,33 @@ expanded syntax tree carries that table through checking and lowering, while typ
 compile-time information and is not copied into the location-free runtime HIR emitted to
 JavaScript.
 
+An option declared as `meta.Expression<T>` accepts a token quote directly. Unlike an
+ordinary option value, the quote is retained as typed syntax for the consuming macro to
+interpolate into generated runtime code:
+
+```hoopoe
+@attributes(\(format: meta.Expression<string>))
+const func display(target: meta.Enum): meta.Tokens = target
+
+enum Message {
+  @display.format = \("error: " + $(this.reason))
+  Error(reason: string),
+}
+```
+
+Within such a quote, `this` is the enclosing runtime value. It is the complete struct
+on a struct or struct field, and the narrowed variant on an enum variant or one of its
+fields. A field attribute refers to its field through `this.field`, just like generated
+instance code does. Because the contents of `\(...)` are tokens, contextual values use
+token interpolation, for example `\($(this.width) * $(this.height))`. Syntax without a
+runtime value rejects `this`. Quotes may refer to module-level names but do not capture
+surrounding runtime locals; `_` remains only the discard pattern and creates no reference.
+
+The compiler parses and checks contextual `this`, known field accesses, and the declared
+result `T` at the source attribute before macro expansion. The resulting
+`meta.Expression<T>` can be interpolated directly. Its final placement is still checked
+by the ordinary semantic pass, with the complete expansion trace on any error.
+
 ## Expansion and imports
 
 Expansion precedes every ordinary AST consumer: import collection, interface

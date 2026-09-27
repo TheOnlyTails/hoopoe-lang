@@ -355,6 +355,252 @@ fn declared_metadata_attributes_are_available_on_meta_syntax_nodes() {
 }
 
 #[test]
+fn quoted_attribute_expressions_can_reference_struct_fields_through_this() {
+	let files = FxHashMap::from_iter([(
+		"main",
+		"@attributes(\\(value: meta.Expression<int>))\n\
+		 const func configured(target: meta.Struct): meta.Tokens = \
+		   match (target.attributes.configured.value) {\
+		     Some(value = expression) -> \\(\
+		       impl $(target.name) { func generated(): int = $(expression) }\
+		     ),\
+		     None -> \\(),\
+		   }\n\
+		 @configured.value = \\($(this.value))\n\
+		 @extend(configured()) struct Point(value: int)\n\
+		 func main(): void = { let answer: int = Point(value = 42).generated() }",
+	)]);
+	let diagnostics = check_project("main", &loader(files));
+	assert!(
+		diagnostics.is_empty(),
+		"unexpected diagnostics: {diagnostics:#?}"
+	);
+}
+
+#[test]
+fn quoted_attribute_expressions_reject_unknown_fields_before_macro_expansion() {
+	let source = "@attributes(\\(value: meta.Expression<int>))\n\
+		 const func configured(target: meta.Struct): meta.Tokens = \
+		   match (target.attributes.configured.value) {\
+		     Some(value = expression) -> \\(\
+		       impl $(target.name) { func generated(): int = $(expression) }\
+		     ),\
+		     None -> \\(),\
+		   }\n\
+		 @configured.value = \\($(this.missing))\n\
+		 @extend(configured()) struct Point(value: int)";
+	let diagnostics = check_project("main", &loader(FxHashMap::from_iter([("main", source)])));
+	let diagnostic = diagnostics
+		.iter()
+		.find(|diagnostic| diagnostic.diag.message.contains("no field `missing`"))
+		.unwrap_or_else(|| panic!("missing contextual-field diagnostic: {diagnostics:#?}"));
+	let start = source.find("this.missing").expect("contextual reference");
+	assert_eq!(
+		diagnostic.diag.span,
+		Span::new(start, start + "this.missing".len())
+	);
+	assert!(
+		diagnostic
+			.diag
+			.labels
+			.iter()
+			.all(|label| label.message != "macro was defined here"),
+		"attribute validation ran after expansion: {diagnostic:#?}"
+	);
+}
+
+#[test]
+fn quoted_attribute_expression_result_must_match_its_declared_type() {
+	let source = "@attributes(\\(text: meta.Expression<string>))\n\
+		 const func configured(target: meta.Struct): meta.Tokens = \
+		   match (target.attributes.configured.text) {\
+		     Some(value = expression) -> target,\
+		     None -> target,\
+		   }\n\
+		 @configured.text = \\($(this.value))\n\
+		 @configured() struct Point(value: int)";
+	let diagnostics = check_project("main", &loader(FxHashMap::from_iter([("main", source)])));
+	let diagnostic = diagnostics
+		.iter()
+		.find(|diagnostic| {
+			diagnostic
+				.diag
+				.message
+				.contains("quoted attribute expression has type Int; expected String")
+		})
+		.unwrap_or_else(|| panic!("missing expression result diagnostic: {diagnostics:#?}"));
+	let start = source.find("this.value").expect("contextual reference");
+	assert_eq!(
+		diagnostic.diag.span,
+		Span::new(start, start + "this.value".len())
+	);
+}
+
+#[test]
+fn quoted_attribute_call_result_must_match_its_declared_type() {
+	let source = "@attributes(\\(value: meta.Expression<int>))\n\
+		 const func configured(target: meta.Struct): meta.Tokens = target\n\
+		 func text() = \"wrong\"\n\
+		 @configured.value = \\(text())\n\
+		 struct Point(value: int)";
+	let diagnostics = check_project("main", &loader(FxHashMap::from_iter([("main", source)])));
+	let diagnostic = diagnostics
+		.iter()
+		.find(|diagnostic| {
+			diagnostic
+				.diag
+				.message
+				.contains("quoted attribute expression has type String; expected Int")
+		})
+		.unwrap_or_else(|| panic!("missing call-result diagnostic: {diagnostics:#?}"));
+	let start = source.rfind("text()").expect("quoted call");
+	assert_eq!(
+		diagnostic.diag.span,
+		Span::new(start, start + "text()".len())
+	);
+}
+
+#[test]
+fn quoted_variant_attributes_retain_typed_field_references_for_macros() {
+	let files = FxHashMap::from_iter([(
+		"main",
+		"@attributes(\\(value: meta.Expression<int>))\n\
+		 const func configured(target: meta.Enum): meta.Tokens = \
+		   match (target.variants[0].fields[0].attributes.configured.value) {\
+		     Some(value = expression) -> \\(\
+		       impl $(target.name).Item { func generated(): int = $(expression) }\
+		     ),\
+		     None -> \\(),\
+		   }\n\
+		 @extend(configured()) enum Choice {\
+		   Item(@configured.value = \\($(this.value)) value: int),\
+		 }\n\
+		 func main(): void = {}",
+	)]);
+	let diagnostics = check_project("main", &loader(files));
+	assert!(
+		diagnostics.is_empty(),
+		"unexpected diagnostics: {diagnostics:#?}"
+	);
+}
+
+#[test]
+fn this_on_a_field_refers_to_the_enclosing_struct_in_generated_instance_code() {
+	let files = FxHashMap::from_iter([(
+		"main",
+		"@attributes(\\(value: meta.Expression<int>))\n\
+		 const func configured(target: meta.Struct): meta.Tokens = \
+		   match (target.fields[0].attributes.configured.value) {\
+		     Some(value = expression) -> \\(\
+		       impl $(target.name) { func generated(): int = $(expression) }\
+		     ),\
+		     None -> \\(),\
+		   }\n\
+		 @extend(configured()) struct Point(\
+		   @configured.value = \\($(this.width) * $(this.height))\
+		   width: int,\
+		   height: int,\
+		 )\n\
+		 func main(): void = { let answer: int = Point(width = 6, height = 7).generated() }",
+	)]);
+	let diagnostics = check_project("main", &loader(files));
+	assert!(
+		diagnostics.is_empty(),
+		"unexpected diagnostics: {diagnostics:#?}"
+	);
+}
+
+#[test]
+fn contextual_this_cannot_be_interpolated_under_a_different_receiver() {
+	let source = "struct Other(value: int)\n\
+		 @attributes(\\(value: meta.Expression<int>))\n\
+		 const func configured(target: meta.Struct): meta.Tokens = \
+		   match (target.fields[0].attributes.configured.value) {\
+		     Some(value = expression) -> {\
+		       let other = meta.Name.exposed(\"Other\")\n\
+		       \\(impl $(other) { func generated(): int = $(expression) })\
+		     },\
+		     None -> \\(),\
+		   }\n\
+		 @extend(configured()) struct Point(\
+		   @configured.value = \\($(this.value))\
+		   value: int,\
+		 )\n\
+		 func main(): void = { let answer: int = Other(value = 42).generated() }";
+	let diagnostics = check_project("main", &loader(FxHashMap::from_iter([("main", source)])));
+	let diagnostic = diagnostics
+		.iter()
+		.find(|diagnostic| diagnostic.diag.message.contains("different `this` value"))
+		.unwrap_or_else(|| panic!("missing contextual receiver diagnostic: {diagnostics:#?}"));
+	assert!(
+		diagnostic
+			.diag
+			.labels
+			.iter()
+			.any(|label| label.message == "macro was defined here"),
+		"generated placement did not retain expansion trace: {diagnostic:#?}"
+	);
+}
+
+#[test]
+fn contextual_this_is_rejected_on_syntax_without_a_runtime_value() {
+	let source = "@attributes(\\(value: meta.Expression<int>))\n\
+		 const func configured(target: meta.TypeAlias): meta.Tokens = target\n\
+		 @configured.value = \\($(this))\n\
+		 type Count = int";
+	let diagnostics = check_project("main", &loader(FxHashMap::from_iter([("main", source)])));
+	let diagnostic = diagnostics
+		.iter()
+		.find(|diagnostic| {
+			diagnostic
+				.diag
+				.message
+				.contains("attribute target has no runtime value")
+		})
+		.unwrap_or_else(|| panic!("missing contextual-value diagnostic: {diagnostics:#?}"));
+	let start = source.find("this").expect("contextual reference");
+	assert_eq!(diagnostic.diag.span, Span::new(start, start + "this".len()));
+}
+
+#[test]
+fn quoted_attribute_expressions_reject_captures_from_the_enclosing_function() {
+	let source = "@attributes(\\(value: meta.Expression<int>))\n\
+		 const func configured(target: meta.Struct): meta.Tokens = target\n\
+		 func read(local: int): int = @configured.value = \\(local) 0";
+	let diagnostics = check_project("main", &loader(FxHashMap::from_iter([("main", source)])));
+	let diagnostic = diagnostics
+		.iter()
+		.find(|diagnostic| {
+			diagnostic
+				.diag
+				.message
+				.contains("cannot capture runtime local `local`")
+		})
+		.unwrap_or_else(|| panic!("missing local-capture diagnostic: {diagnostics:#?}"));
+	let start = source.find("\\(local)").expect("quoted local") + 2;
+	assert_eq!(
+		diagnostic.diag.span,
+		Span::new(start, start + "local".len())
+	);
+}
+
+#[test]
+fn quoted_attribute_expressions_may_reference_module_functions() {
+	let files = FxHashMap::from_iter([(
+		"main",
+		"@attributes(\\(value: meta.Expression<int>))\n\
+		 const func configured(target: meta.Struct): meta.Tokens = target\n\
+		 func module_value(): int = 42\n\
+		 func main(): void = { let value = @configured.value = \\(module_value()) 0 }",
+	)]);
+	let diagnostics = check_project("main", &loader(files));
+	assert!(
+		diagnostics.is_empty(),
+		"unexpected diagnostics: {diagnostics:#?}"
+	);
+}
+
+#[test]
 fn importing_a_macro_aliases_its_default_attribute_namespace() {
 	let files = FxHashMap::from_iter([
 		(

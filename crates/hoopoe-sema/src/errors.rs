@@ -65,6 +65,8 @@ pub enum TypeError {
 	// ── Values & access ──────────────────────────────────────────────────────
 	/// `this` was used outside any method body.
 	ThisOutsideMethod,
+	/// A quoted metadata expression was inserted under a different runtime receiver.
+	ContextualThisWrongReceiver,
 	/// A struct type name was used where a value is expected.
 	StructTypeAsValue,
 	/// A type was used where a value is expected.
@@ -553,6 +555,9 @@ impl IntoDiagnostic for TypeError {
 			}
 
 			E::ThisOutsideMethod => "`this` is only valid inside a method".into(),
+			E::ContextualThisWrongReceiver => {
+				"quoted attribute expression was inserted under a different `this` value".into()
+			}
 			E::StructTypeAsValue => "a struct type cannot be used as a value directly".into(),
 			E::FieldVariantAsValue { variant } => format!(
 				"variant `{variant}` carries fields and cannot be used as a value; call it to construct, e.g. `{variant}(field = …)`"

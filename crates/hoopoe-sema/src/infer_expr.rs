@@ -1014,7 +1014,16 @@ impl<'m> Checker<'m> {
 				self.interner.string()
 			}
 			ExprKind::This => match self.self_ty {
-				Some(ty) => ty,
+				Some(ty) => {
+					if let hoopoe_ast::SyntaxContext::Contextual(expected) = span.context
+						&& self.contextual_value_id(ty) != Some(expected)
+					{
+						self.emit(span, TypeError::ContextualThisWrongReceiver);
+						self.interner.error()
+					} else {
+						ty
+					}
+				}
 				None => {
 					self.emit(span, TypeError::ThisOutsideMethod);
 					self.interner.error()
@@ -3571,6 +3580,41 @@ impl<'m> Checker<'m> {
 					);
 					return self.interner.error();
 				}
+				if let DefKind::Variant { enum_def, variant } = self.defs.data(def).kind {
+					let sig = self.sigs.enums[&enum_def].variants[variant].clone();
+					let subst = adt_subst(&args);
+					if let Some((field_index, (_, field_type))) = sig
+						.fields
+						.iter()
+						.enumerate()
+						.find(|(_, (name, _))| name == member)
+					{
+						let metadata = &sig.field_metadata[field_index];
+						if !self.field_available(metadata) {
+							self.emit(
+								span,
+								TypeError::InaccessibleStructField {
+									field: member.into(),
+								},
+							);
+							return self.interner.error();
+						}
+						if let Some(id) = id {
+							self
+								.annotations
+								.record_definition_target(id, metadata.target.as_ref());
+						}
+						return self.subst(*field_type, &subst, Some(parent_ty));
+					}
+					self.emit(
+						span,
+						TypeError::NoField {
+							field: member.into(),
+							ty: format!("{}.{}", self.defs.data(enum_def).name, sig.name),
+						},
+					);
+					return self.interner.error();
+				}
 				self.emit(span, TypeError::MethodCallsUnsupported);
 				self.interner.error()
 			}
@@ -3588,6 +3632,24 @@ impl<'m> Checker<'m> {
 				self.interner.error()
 			}
 		}
+	}
+
+	fn contextual_value_id(&mut self, ty: Ty) -> Option<hoopoe_ast::ContextualValueId> {
+		let ty = self.shallow_resolve(ty);
+		let TyKind::Adt(def, _) = self.interner.kind(ty) else {
+			return None;
+		};
+		let data = self.defs.data(*def);
+		let owner = match data.kind {
+			DefKind::Variant { enum_def, .. } => {
+				format!("{}.{}", self.defs.data(enum_def).name, data.name)
+			}
+			_ => data.name.to_string(),
+		};
+		Some(hoopoe_ast::ContextualValueId::new(
+			&self.module.path,
+			&owner,
+		))
 	}
 
 	// ── Closures ─────────────────────────────────────────────────────────────

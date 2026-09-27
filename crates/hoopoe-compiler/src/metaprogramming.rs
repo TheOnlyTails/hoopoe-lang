@@ -5,7 +5,7 @@ use std::{
 
 use ecow::EcoString;
 use hoopoe_ast::{
-	OriginId, Span, Spanned, SyntaxContext,
+	ContextualValueId, OriginId, Span, Spanned, SyntaxContext,
 	decl::{
 		Declaration, FuncDeclaration, FuncParam, ImplMember, ImportRoot, Module, StructField,
 		StructImpl, SyntaxAttribute,
@@ -312,6 +312,13 @@ enum Value {
 struct TokenValue {
 	items: Vec<Spanned<Token>>,
 	preserve_origins: bool,
+}
+
+#[derive(Clone)]
+struct ContextualValue {
+	type_: Type,
+	fields: BTreeMap<EcoString, Spanned<Type>>,
+	id: ContextualValueId,
 }
 
 impl PartialEq for TokenValue {
@@ -1034,9 +1041,16 @@ impl<'a> Evaluator<'a> {
 		}
 		*next_node_id =
 			max_node_id(&ranged.parsed.tree).map_or(*next_node_id, |id| id.saturating_add(1));
-		self
-			.syntax_attributes
-			.extend(ranged.parsed.tree.attributes.iter().cloned());
+		for attribute in &ranged.parsed.tree.attributes {
+			if !self.syntax_attributes.iter().any(|existing| {
+				existing.namespace == attribute.namespace
+					&& existing.option == attribute.option
+					&& existing.value.span == attribute.value.span
+					&& existing.target == attribute.target
+			}) {
+				self.syntax_attributes.push(attribute.clone());
+			}
+		}
 		let token_groups = ranged
 			.declaration_ranges
 			.into_iter()
@@ -1140,7 +1154,7 @@ impl<'a> Evaluator<'a> {
 				)
 			})?,
 			ExprKind::TokenLiteral(literal) => Value::Tokens(TokenValue {
-				items: self.eval_token_literal(literal, env)?,
+				items: self.eval_token_literal(literal, env, None, false)?,
 				preserve_origins: false,
 			}),
 			ExprKind::Expansion(value) | ExprKind::Grouped(value) => self.eval(value, env)?,
@@ -1792,16 +1806,7 @@ impl<'a> Evaluator<'a> {
 			})));
 		}
 		if type_name == "Expression" {
-			let end = tokens.last().map_or(span.end, |token| token.1.end);
-			let parsed = hoopoe_syntax::parse_expression_tokens_from(
-				&tokens,
-				Span::new(end, end).with_origin(self.current_origin),
-				0,
-			);
-			if let Some(diagnostic) = parsed.diagnostics.into_iter().next() {
-				return Err(diagnostic.with_note("while parsing `meta.Expression`"));
-			}
-			return Ok(Some(meta_syntax("Expression", parsed.tree.span, &tokens)));
+			return self.parse_meta_expression(tokens, span).map(Some);
 		}
 		if let Some((prefix, suffix)) = match type_name {
 			"Type" => Some(("type __Meta = ", "")),
@@ -1859,6 +1864,32 @@ impl<'a> Evaluator<'a> {
 			declaration,
 			expected == "Declaration",
 		)?))
+	}
+
+	fn parse_meta_expression(
+		&self,
+		tokens: Vec<Spanned<Token>>,
+		span: Span,
+	) -> Result<Value, Diagnostic> {
+		let expression = self.parse_meta_expression_tree(&tokens, span)?;
+		Ok(meta_syntax("Expression", expression.span, &tokens))
+	}
+
+	fn parse_meta_expression_tree(
+		&self,
+		tokens: &[Spanned<Token>],
+		span: Span,
+	) -> Result<Expr, Diagnostic> {
+		let end = tokens.last().map_or(span.end, |token| token.1.end);
+		let parsed = hoopoe_syntax::parse_expression_tokens_from(
+			tokens,
+			Span::new(end, end).with_origin(self.current_origin),
+			0,
+		);
+		if let Some(diagnostic) = parsed.diagnostics.into_iter().next() {
+			return Err(diagnostic.with_note("while parsing `meta.Expression`"));
+		}
+		Ok(parsed.tree)
 	}
 
 	fn eval_meta_constructor(
@@ -2720,7 +2751,35 @@ impl<'a> Evaluator<'a> {
 					),
 				));
 			};
-			let value = self.eval(&attribute.value, &mut Env::new())?;
+			let result_type = meta_expression_result_type(&expected.0);
+			let context = result_type.and_then(|_| contextual_value(self.module, attribute.target));
+			let value = match (&attribute.value.kind, result_type) {
+				(ExprKind::TokenLiteral(literal), Some(_)) => Value::Tokens(TokenValue {
+					items: self.eval_token_literal(literal, &mut Env::new(), context.as_ref(), true)?,
+					preserve_origins: false,
+				}),
+				_ => self.eval(&attribute.value, &mut Env::new())?,
+			};
+			let value = match (result_type, value) {
+				(Some(result_type), Value::Tokens(tokens)) => {
+					let validation_tokens = tokens_without_contextual_bindings(&tokens.items);
+					let expression =
+						self.parse_meta_expression_tree(&validation_tokens, attribute.value.span)?;
+					let captured = enclosing_runtime_bindings(self.module, attribute.target);
+					let actual =
+						self.validate_contextual_expression(&expression, context.as_ref(), &captured)?;
+					if let Some(actual) = actual
+						&& !same_type_shape(&actual, result_type)
+					{
+						return Err(self.error(
+							expression.span,
+							format!("quoted attribute expression has type {actual:?}; expected {result_type:?}"),
+						));
+					}
+					meta_syntax("Expression", expression.span, &tokens.items)
+				}
+				(_, value) => value,
+			};
 			if !value_matches_attribute_type(&value, &expected.0) {
 				return Err(self.error(
 					attribute.value.span,
@@ -2763,6 +2822,149 @@ impl<'a> Evaluator<'a> {
 			fields: namespaces,
 			tokens: Vec::new(),
 		})
+	}
+
+	fn validate_contextual_expression(
+		&self,
+		expression: &Expr,
+		context: Option<&ContextualValue>,
+		captured: &BTreeSet<EcoString>,
+	) -> Result<Option<Type>, Diagnostic> {
+		let inferred = match &expression.kind {
+			ExprKind::Identifier(name) if captured.contains(&name.0) => {
+				return Err(self.error(
+					expression.span,
+					format!(
+						"quoted attribute expression cannot capture runtime local `{}`",
+						name.0
+					),
+				));
+			}
+			ExprKind::Identifier(name) => module_value_type(self.module, &name.0),
+			ExprKind::This => {
+				let Some(context) = context else {
+					return Err(self.error(
+						expression.span,
+						"`this` is unavailable because this attribute target has no runtime value",
+					));
+				};
+				Some(context.type_.clone())
+			}
+			ExprKind::MemberAccess { parent, member, .. } => {
+				let parent_type = self.validate_contextual_expression(parent, context, captured)?;
+				let fields = if matches!(parent.kind, ExprKind::This) {
+					context.map(|context| context.fields.clone())
+				} else {
+					parent_type
+						.as_ref()
+						.and_then(|type_| fields_for_type(self.module, type_))
+				};
+				if let Some(fields) = fields {
+					let Some(type_) = fields.get(&member.0) else {
+						return Err(self.error(
+							expression.span,
+							format!("no field `{}` exists on this attribute target", member.0),
+						));
+					};
+					Some(type_.0.clone())
+				} else {
+					None
+				}
+			}
+			ExprKind::Call { func, args, .. } => {
+				let actual_args = args
+					.iter()
+					.map(|argument| {
+						self.validate_contextual_expression(argument.0.value(), context, captured)
+					})
+					.collect::<Result<Vec<_>, _>>()?;
+				if let ExprKind::Identifier(name) = &func.kind
+					&& let Some((params, result, body)) = module_function(self.module, &name.0)
+				{
+					for (argument, (actual, expected)) in args.iter().zip(actual_args.iter().zip(&params)) {
+						if let Some(actual) = actual
+							&& !same_type_shape(actual, expected)
+						{
+							return Err(self.error(
+								argument.0.value().span,
+								format!(
+									"quoted attribute call argument has type {actual:?}; expected {expected:?}"
+								),
+							));
+						}
+					}
+					let result = match result {
+						Some(result) => Some(result.clone()),
+						None => self.validate_contextual_expression(body, None, &BTreeSet::new())?,
+					};
+					return Ok(result);
+				}
+				if let ExprKind::MemberAccess { parent, member, .. } = &func.kind {
+					self.validate_contextual_expression(parent, context, captured)?;
+					if member.0 == "to_string" {
+						Some(Type::String)
+					} else {
+						None
+					}
+				} else {
+					self.validate_contextual_expression(func, context, captured)?;
+					None
+				}
+			}
+			ExprKind::Int(_) => Some(Type::Int),
+			ExprKind::UInt(_) => Some(Type::UInt),
+			ExprKind::Float(_) => Some(Type::Float),
+			ExprKind::Char(_) => Some(Type::Char),
+			ExprKind::Boolean(_) => Some(Type::Boolean),
+			ExprKind::String(parts) => {
+				for part in parts {
+					if let StringPart::InterpolatedExpr(value) = &part.0 {
+						self.validate_contextual_expression(value, context, captured)?;
+					}
+				}
+				Some(Type::String)
+			}
+			ExprKind::Grouped(value) => self.validate_contextual_expression(value, context, captured)?,
+			ExprKind::BinaryOp { lhs, op, rhs } => {
+				let lhs = self.validate_contextual_expression(lhs, context, captured)?;
+				let rhs = self.validate_contextual_expression(rhs, context, captured)?;
+				match op {
+					BinaryOperator::Equals
+					| BinaryOperator::NotEquals
+					| BinaryOperator::LessThan
+					| BinaryOperator::LessThanEquals
+					| BinaryOperator::GreaterThan
+					| BinaryOperator::GreaterThanEquals
+					| BinaryOperator::In
+					| BinaryOperator::NotIn
+					| BinaryOperator::BoolAnd
+					| BinaryOperator::BoolOr => Some(Type::Boolean),
+					_ if lhs
+						.as_ref()
+						.zip(rhs.as_ref())
+						.is_some_and(|(left, right)| same_type_shape(left, right)) =>
+					{
+						lhs
+					}
+					_ => None,
+				}
+			}
+			_ => {
+				let mut error = None;
+				expression.for_each_child(|child| {
+					if error.is_none() {
+						error = self
+							.validate_contextual_expression(child, context, captured)
+							.err();
+					}
+				});
+				if let Some(error) = error {
+					return Err(error);
+				}
+				None
+			}
+		};
+		Ok(inferred)
 	}
 
 	fn validate_syntax_attributes(&mut self) -> Result<(), Diagnostic> {
@@ -3289,6 +3491,8 @@ impl<'a> Evaluator<'a> {
 		&mut self,
 		literal: &hoopoe_ast::expr::TokenLiteral,
 		env: &mut Env,
+		context: Option<&ContextualValue>,
+		is_attribute_expression: bool,
 	) -> Result<Vec<Spanned<Token>>, Diagnostic> {
 		let mut tokens = Vec::new();
 		for piece in &literal.pieces {
@@ -3301,6 +3505,15 @@ impl<'a> Evaluator<'a> {
 					splice,
 					separator,
 				} => {
+					if is_attribute_expression
+						&& let Some(contextual) = contextual_interpolation_tokens(value, context)
+					{
+						if *splice {
+							return Err(self.error(piece.1, "a contextual value cannot be spliced"));
+						}
+						tokens.extend(contextual);
+						continue;
+					}
 					let value = self.eval(value, env)?;
 					if *splice {
 						let values = self.iterable_values(value, piece.1)?;
@@ -3855,6 +4068,307 @@ fn declaration_tokens_span(tokens: &[Spanned<Token>]) -> Span {
 	}
 }
 
+fn meta_expression_result_type(type_: &Type) -> Option<&Type> {
+	let Type::Reference { name, generics } = type_ else {
+		return None;
+	};
+	if name.0.rsplit('.').next() != Some("Expression") {
+		return None;
+	}
+	let [argument] = generics.as_slice() else {
+		return None;
+	};
+	argument.0.value.as_type().map(|type_| &type_.0)
+}
+
+fn enclosing_runtime_bindings(module: &Module, target: Span) -> BTreeSet<EcoString> {
+	for declaration in &module.members {
+		let declaration = attached_target(declaration);
+		if let Declaration::Func { meta, body, .. } = declaration
+			&& span_contains(body.span, target)
+		{
+			let mut bindings = meta
+				.params
+				.iter()
+				.filter_map(|parameter| parameter.0.name.0.as_binding())
+				.map(|name| name.0.clone())
+				.collect();
+			collect_expression_bindings(body, &mut bindings);
+			return bindings;
+		}
+	}
+	BTreeSet::new()
+}
+
+fn collect_expression_bindings(expression: &Expr, bindings: &mut BTreeSet<EcoString>) {
+	match &expression.kind {
+		ExprKind::Closure { params, .. } => {
+			bindings.extend(
+				params
+					.iter()
+					.filter_map(|parameter| parameter.0.name.0.as_binding())
+					.map(|name| name.0.clone()),
+			);
+		}
+		ExprKind::For { variable, .. } => {
+			if let Some(name) = variable.0.as_binding() {
+				bindings.insert(name.0.clone());
+			}
+		}
+		ExprKind::StateLoop {
+			bindings: state, ..
+		} => {
+			bindings.extend(
+				state
+					.iter()
+					.filter_map(|binding| binding.meta.name.0.as_binding())
+					.map(|name| name.0.clone()),
+			);
+		}
+		ExprKind::Match { arms, .. } => {
+			bindings.extend(
+				arms
+					.iter()
+					.filter_map(|arm| arm.pattern.0.as_binding())
+					.map(|name| name.0.clone()),
+			);
+		}
+		ExprKind::Block { body, .. } => {
+			bindings.extend(body.iter().filter_map(|statement| match &statement.0 {
+				Statement::Let { meta, .. } => meta.name.0.as_binding().map(|name| name.0.clone()),
+				Statement::Expr(_) => None,
+			}));
+		}
+		_ => {}
+	}
+	expression.for_each_child(|child| collect_expression_bindings(child, bindings));
+}
+
+fn span_contains(outer: Span, inner: Span) -> bool {
+	outer.start <= inner.start && outer.end >= inner.end
+}
+
+fn module_function<'a>(
+	module: &'a Module,
+	name: &str,
+) -> Option<(Vec<Type>, Option<&'a Type>, &'a Expr)> {
+	module.members.iter().find_map(|declaration| {
+		let Declaration::Func { meta, body, .. } = attached_target(declaration) else {
+			return None;
+		};
+		(meta.name.0 == name).then(|| {
+			(
+				meta
+					.params
+					.iter()
+					.map(|parameter| parameter.0.type_.0.clone())
+					.collect(),
+				meta.return_type.as_ref().map(|type_| &type_.0),
+				body,
+			)
+		})
+	})
+}
+
+fn module_value_type(module: &Module, name: &str) -> Option<Type> {
+	module.members.iter().find_map(|declaration| {
+		let Declaration::Let { meta, .. } = attached_target(declaration) else {
+			return None;
+		};
+		(meta
+			.name
+			.0
+			.as_binding()
+			.is_some_and(|binding| binding.0 == name))
+		.then(|| meta.type_.as_ref().map(|type_| type_.0.clone()))
+		.flatten()
+	})
+}
+
+fn attached_target(declaration: &Declaration) -> &Declaration {
+	match declaration {
+		Declaration::Attached { target, .. } => target,
+		declaration => declaration,
+	}
+}
+
+fn contextual_value(module: &Module, target: Span) -> Option<ContextualValue> {
+	for declaration in &module.members {
+		let declaration = attached_target(declaration);
+		match declaration {
+			Declaration::Struct { name, fields, .. } => {
+				if fields.iter().any(|field| field.1 == target)
+					|| target.start <= name.1.start && target.end >= name.1.end
+				{
+					return Some(ContextualValue {
+						type_: reference_type(name.clone()),
+						fields: field_types(fields),
+						id: ContextualValueId::new(&module.path, &name.0),
+					});
+				}
+			}
+			Declaration::Enum { name, variants, .. } => {
+				for variant in variants {
+					if variant.0.fields.iter().any(|field| field.1 == target) || variant.1 == target {
+						let variant_name: Spanned<EcoString> =
+							Spanned(format!("{}.{}", name.0, variant.0.name.0).into(), variant.1);
+						let id = ContextualValueId::new(&module.path, &variant_name.0);
+						return Some(ContextualValue {
+							type_: reference_type(variant_name),
+							fields: field_types(&variant.0.fields),
+							id,
+						});
+					}
+				}
+				if target.start <= name.1.start && target.end >= name.1.end {
+					return Some(ContextualValue {
+						type_: reference_type(name.clone()),
+						fields: BTreeMap::new(),
+						id: ContextualValueId::new(&module.path, &name.0),
+					});
+				}
+			}
+			_ => {}
+		}
+	}
+	None
+}
+
+fn contextual_interpolation_tokens(
+	expression: &Expr,
+	context: Option<&ContextualValue>,
+) -> Option<Vec<Spanned<Token>>> {
+	match &expression.kind {
+		ExprKind::This => Some(vec![Spanned(
+			Token::This,
+			context.map_or(expression.span, |context| {
+				expression
+					.span
+					.with_context(SyntaxContext::Contextual(context.id))
+			}),
+		)]),
+		ExprKind::MemberAccess {
+			parent,
+			member,
+			optional: false,
+		} => {
+			let mut tokens = contextual_interpolation_tokens(parent, context)?;
+			tokens.push(Spanned(Token::Dot, member.1));
+			tokens.push(Spanned(Token::Identifier(member.0.clone()), member.1));
+			Some(tokens)
+		}
+		_ => None,
+	}
+}
+
+fn tokens_without_contextual_bindings(tokens: &[Spanned<Token>]) -> Vec<Spanned<Token>> {
+	tokens
+		.iter()
+		.cloned()
+		.map(|mut token| {
+			if matches!(token.1.context, SyntaxContext::Contextual(_)) {
+				token.1.context = SyntaxContext::Source;
+			}
+			if let Token::Str(parts) = &mut token.0 {
+				for part in parts {
+					if matches!(part.1.context, SyntaxContext::Contextual(_)) {
+						part.1.context = SyntaxContext::Source;
+					}
+					if let StrFragment::Interpolation(tokens) = &mut part.0 {
+						*tokens = tokens_without_contextual_bindings(tokens);
+					}
+				}
+			}
+			token
+		})
+		.collect()
+}
+
+fn reference_type(name: Spanned<EcoString>) -> Type {
+	Type::Reference {
+		name,
+		generics: Vec::new(),
+	}
+}
+
+fn field_types(fields: &[Spanned<StructField>]) -> BTreeMap<EcoString, Spanned<Type>> {
+	fields
+		.iter()
+		.map(|field| (field.0.name.0.clone(), field.0.type_.clone()))
+		.collect()
+}
+
+fn fields_for_type(module: &Module, type_: &Type) -> Option<BTreeMap<EcoString, Spanned<Type>>> {
+	let Type::Reference { name, .. } = type_ else {
+		return None;
+	};
+	let expected = name.0.rsplit('.').next().unwrap_or(name.0.as_str());
+	for declaration in &module.members {
+		let declaration = attached_target(declaration);
+		match declaration {
+			Declaration::Struct { name, fields, .. } if name.0 == expected => {
+				return Some(field_types(fields));
+			}
+			Declaration::Enum { variants, .. } => {
+				if let Some(variant) = variants.iter().find(|variant| variant.0.name.0 == expected) {
+					return Some(field_types(&variant.0.fields));
+				}
+			}
+			_ => {}
+		}
+	}
+	None
+}
+
+fn same_type_shape(left: &Type, right: &Type) -> bool {
+	match (left, right) {
+		(Type::Int, Type::Int)
+		| (Type::UInt, Type::UInt)
+		| (Type::Float, Type::Float)
+		| (Type::Char, Type::Char)
+		| (Type::String, Type::String)
+		| (Type::Boolean, Type::Boolean)
+		| (Type::Void, Type::Void)
+		| (Type::Never, Type::Never)
+		| (Type::SelfType, Type::SelfType)
+		| (Type::Infer, Type::Infer) => true,
+		(Type::Grouped(left), right) => same_type_shape(&left.0, right),
+		(left, Type::Grouped(right)) => same_type_shape(left, &right.0),
+		(Type::List(left), Type::List(right)) => same_type_shape(&left.0, &right.0),
+		(Type::Tuple(left), Type::Tuple(right)) => {
+			left.len() == right.len()
+				&& left
+					.iter()
+					.zip(right)
+					.all(|(left, right)| same_type_shape(&left.0, &right.0))
+		}
+		(
+			Type::Reference {
+				name: left_name,
+				generics: left_generics,
+			},
+			Type::Reference {
+				name: right_name,
+				generics: right_generics,
+			},
+		) => {
+			left_name.0 == right_name.0
+				&& left_generics.len() == right_generics.len()
+				&& left_generics
+					.iter()
+					.zip(right_generics)
+					.all(
+						|(left, right)| match (left.0.value.as_type(), right.0.value.as_type()) {
+							(Some(left), Some(right)) => same_type_shape(&left.0, &right.0),
+							(None, None) => true,
+							_ => false,
+						},
+					)
+		}
+		_ => false,
+	}
+}
+
 fn value_matches_attribute_type(value: &Value, expected: &Type) -> bool {
 	match expected {
 		Type::Int => matches!(value, Value::Int(_)),
@@ -3884,9 +4398,20 @@ fn value_matches_attribute_type(value: &Value, expected: &Type) -> bool {
 		},
 		Type::Grouped(inner) => value_matches_attribute_type(value, &inner.0),
 		Type::Reference { name, .. } => match value {
-			Value::Record { name: actual, .. } => actual == &name.0,
+			Value::Record { name: actual, .. } => {
+				actual == &name.0
+					|| (meta_token_convertible_type(actual)
+						&& name
+							.0
+							.rsplit('.')
+							.next()
+							.is_some_and(|expected| actual == expected))
+			}
 			Value::Variant { value, .. } => {
-				matches!(value.as_ref(), Value::Record { name: actual, .. } if actual == &name.0)
+				matches!(value.as_ref(), Value::Record { name: actual, .. }
+					if actual == &name.0
+						|| (meta_token_convertible_type(actual)
+							&& name.0.rsplit('.').next().is_some_and(|expected| actual == expected)))
 			}
 			_ => false,
 		},
@@ -4076,6 +4601,7 @@ fn meta_span(span: Span) -> Value {
 			Value::Tuple(vec![Value::UInt(origin.0), Value::UInt(index.into())]),
 		),
 		SyntaxContext::Exposed(origin) => meta_variant("Exposed", Value::UInt(origin.0)),
+		SyntaxContext::Contextual(id) => meta_variant("Contextual", Value::UInt(id.0)),
 	};
 	Value::Record {
 		owner: None,
@@ -4166,6 +4692,9 @@ fn value_span(value: &Value) -> Option<Span> {
 		}
 		Value::Variant { name, value, .. } if name == "Exposed" => {
 			SyntaxContext::Exposed(OriginId(value_uint(value)?))
+		}
+		Value::Variant { name, value, .. } if name == "Contextual" => {
+			SyntaxContext::Contextual(ContextualValueId(value_uint(value)?))
 		}
 		_ => return None,
 	};
