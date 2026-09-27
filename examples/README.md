@@ -42,14 +42,15 @@ hoo run --manifest examples/hello-world/hoopoe.toml
 
 ## The examples
 
-| Example                              | What it shows                                                               | Status                 |
-| ------------------------------------ | --------------------------------------------------------------------------- | ---------------------- |
-| [`hello-world`](./hello-world)       | The smallest program — `println` from `std/io`.                             | ✅ runs                |
-| [`fizzbuzz`](./fizzbuzz)             | Ranges, `match`, guards, string interpolation — no imports beyond `std/io`. | ✅ runs                |
-| [`shapes`](./shapes)                 | Enums, interfaces + `impl`, generics, exhaustive `match`. Pure language.    | ✅ runs                |
-| [`word-frequency`](./word-frequency) | Task-based file input, persistent maps, and a lazy iterator pipeline.       | 🚧 planned `std/fs`    |
-| [`todo-cli`](./todo-cli)             | Arguments, typed commands, JSON persistence, and immutable updates.         | 🚧 planned host APIs   |
-| [`http-server`](./http-server)       | Immutable routing, typed requests and responses, and one-shot bodies.       | 🚧 HTTP migration      |
+| Example                                | What it shows                                                               | Status                 |
+| -------------------------------------- | --------------------------------------------------------------------------- | ---------------------- |
+| [`hello-world`](./hello-world)         | The smallest program — `println` from `std/io`.                             | ✅ runs                |
+| [`fizzbuzz`](./fizzbuzz)               | Ranges, `match`, guards, string interpolation — no imports beyond `std/io`. | ✅ runs                |
+| [`shapes`](./shapes)                   | Enums, interfaces + `impl`, generics, exhaustive `match`. Pure language.    | ✅ runs                |
+| [`metaprogramming`](./metaprogramming) | Attached and extend macros, metadata, and typed quoted expressions.         | ✅ runs                |
+| [`word-frequency`](./word-frequency)   | Task-based file input, persistent maps, and a lazy iterator pipeline.       | 🚧 planned `std/fs`    |
+| [`todo-cli`](./todo-cli)               | Arguments, typed commands, JSON persistence, and immutable updates.         | 🚧 planned host APIs   |
+| [`http-server`](./http-server)         | Immutable routing, typed requests and responses, and one-shot bodies.       | 🚧 HTTP migration      |
 
 ## Language features on display
 

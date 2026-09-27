@@ -120,7 +120,7 @@ fn example_manifest(name: &str) -> std::path::PathBuf {
 		.join("hoopoe.toml")
 }
 
-const RUNNABLE_EXAMPLES: [&str; 3] = ["fizzbuzz", "hello-world", "shapes"];
+const RUNNABLE_EXAMPLES: [&str; 4] = ["fizzbuzz", "hello-world", "metaprogramming", "shapes"];
 const PENDING_SYNTAX_EXAMPLES: [&str; 1] = ["todo-cli"];
 
 fn example_manifests() -> Vec<(String, std::path::PathBuf)> {
@@ -180,6 +180,10 @@ fn deterministic_examples_have_exact_output_and_status() {
 	for (name, expected) in [
 		("fizzbuzz", fizzbuzz.as_str()),
 		("hello-world", "Hello, world!\n"),
+		(
+			"metaprogramming",
+			"computed reading: 42\nhit rank: 105\nreplacement counter: 7\n",
+		),
 		(
 			"shapes",
 			"circle with area 12.56636\nrectangle with area 12.0\ntriangle with area 6.0\ntotal area: 30.56636\n",

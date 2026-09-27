@@ -1,0 +1,53 @@
+import std/io with (println)
+
+func offset(): int = 2
+
+/// Declare `computed.value` and append a method from its field's checked expression.
+@attributes(\(value: meta.Expression<int>))
+const func computed(target: meta.Struct): meta.Tokens = match (target.fields[0].attributes.computed.value) {
+	Some(value = expression) -> \(impl $(target.name) {
+		func computed(): int = $(expression)
+	}),
+	None -> \(),
+}
+
+/// Variant metadata gets a narrowed variant value for `this`.
+@attributes(\(score: meta.Expression<int>))
+const func ranked(target: meta.Enum): meta.Tokens = match (target.variants[0].attributes.ranked.score) {
+	Some(value = expression) -> \(impl $(target.name).Hit {
+		func rank(): int = $(expression)
+	}),
+	None -> \(),
+}
+
+/// A plain attached macro may replace its declaration completely.
+const func replace_with_counter(target: meta.Struct): meta.Tokens = {
+	let counter = meta.Name.exposed("Counter")
+	\(struct $(counter)(value: int))
+}
+
+@extend(computed())
+struct Reading(
+	// Field metadata keeps `this` bound to the enclosing `Reading` value.
+	@computed.value = \($(this.raw) * 2 + offset())
+	raw: int,
+)
+@extend(ranked())
+enum Signal {
+	// Here `this` is narrowed to `Signal.Hit`.
+	@ranked.score = \($(this.value) + 100)
+	Hit(value: int),
+}
+
+@replace_with_counter()
+struct DraftCounter(unused: int)
+
+func main(): void = {
+	let reading = Reading(raw = 20)
+	let hit: Signal.Hit = Signal.Hit(value = 5)
+	let counter = Counter(value = 7)
+
+	println("computed reading: ${reading.computed()}")
+	println("hit rank: ${hit.rank()}")
+	println("replacement counter: ${counter.value}")
+}
