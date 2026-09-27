@@ -1219,6 +1219,14 @@ fn attachment_shell(
 			});
 		}
 	};
+	let shell = match &shell.key {
+		crate::DeclarationKey::Member {
+			owner,
+			category: crate::DeclarationCategory::Variant,
+			..
+		} => (**owner).clone(),
+		_ => shell,
+	};
 	let request = StableShapeRequest::TypeShell(shell.clone());
 	if !matches!(
 		context.stable_shape(&request)?,

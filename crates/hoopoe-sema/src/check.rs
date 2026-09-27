@@ -2488,9 +2488,9 @@ impl Checker<'_> {
 		}
 	}
 
-	/// A single-variant value dispatches through its source enum until a wider
-	/// contextual view is applied. Wider views are already represented by their
-	/// enum `Adt`, so only variant heads need normalization here.
+	/// A single-variant value falls back to its source enum when its exact view
+	/// has no matching method. Wider views are already represented by their enum
+	/// `Adt`, so only variant heads need normalization here.
 	pub(crate) fn static_enum_view_ty(&mut self, ty: Ty) -> Ty {
 		let TyKind::Adt(def, arguments) = self.interner.kind(ty).clone() else {
 			return ty;

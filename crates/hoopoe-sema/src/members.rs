@@ -454,40 +454,45 @@ impl<'m> Checker<'m> {
 		// See `resolve_method`'s matching comment: peel `mut` before matching
 		// against any impl's (never-`mut`) `Self` type.
 		let recv = self.shallow_resolve(recv);
-		let recv = self.static_enum_view_ty(recv);
-		let head = head_of(&self.interner, recv)?;
-		let candidates = self.inherent.candidates(head);
-		for idx in candidates {
-			let has = self
-				.inherent
-				.impls
-				.get(idx)
-				.and_then(|i| i.methods.get(name))
-				.is_some_and(|m| !m.namespaced);
-			if !has {
-				continue;
-			}
-			let snapshot = self.table.snapshot();
-			let matched = self.inherent_receiver_matches(idx, recv);
-			self.table.rollback_to(snapshot);
-			if matched {
-				let snapshot = self.table.snapshot();
-				let diagnostic_mark = self.diags.len();
-				let pending_bound_mark = self.pending_bounds.len();
-				self.commit_inherent(idx, recv, name, Some((arg_tys, arg_lits)), span, false);
-				let arguments_match = self.diags.len() == diagnostic_mark;
-				self.diags.truncate(diagnostic_mark);
-				self.pending_bounds.truncate(pending_bound_mark);
-				self.table.rollback_to(snapshot);
-				if require_argument_match && !arguments_match {
+		let enum_view = self.static_enum_view_ty(recv);
+		for recv in [Some(recv), (enum_view != recv).then_some(enum_view)]
+			.into_iter()
+			.flatten()
+		{
+			let head = head_of(&self.interner, recv)?;
+			let candidates = self.inherent.candidates(head);
+			for idx in candidates {
+				let has = self
+					.inherent
+					.impls
+					.get(idx)
+					.and_then(|i| i.methods.get(name))
+					.is_some_and(|m| !m.namespaced);
+				if !has {
 					continue;
 				}
-				let implementation = self.inherent.impls[idx].definition.clone();
-				let method = &self.inherent.impls[idx].methods[name];
-				let target = method.definition.clone();
-				let (params, ret, type_arguments) =
+				let snapshot = self.table.snapshot();
+				let matched = self.inherent_receiver_matches(idx, recv);
+				self.table.rollback_to(snapshot);
+				if matched {
+					let snapshot = self.table.snapshot();
+					let diagnostic_mark = self.diags.len();
+					let pending_bound_mark = self.pending_bounds.len();
 					self.commit_inherent(idx, recv, name, Some((arg_tys, arg_lits)), span, false);
-				return Some((params, ret, target, implementation, type_arguments));
+					let arguments_match = self.diags.len() == diagnostic_mark;
+					self.diags.truncate(diagnostic_mark);
+					self.pending_bounds.truncate(pending_bound_mark);
+					self.table.rollback_to(snapshot);
+					if require_argument_match && !arguments_match {
+						continue;
+					}
+					let implementation = self.inherent.impls[idx].definition.clone();
+					let method = &self.inherent.impls[idx].methods[name];
+					let target = method.definition.clone();
+					let (params, ret, type_arguments) =
+						self.commit_inherent(idx, recv, name, Some((arg_tys, arg_lits)), span, false);
+					return Some((params, ret, target, implementation, type_arguments));
+				}
 			}
 		}
 		None
@@ -500,34 +505,42 @@ impl<'m> Checker<'m> {
 		span: hoopoe_ast::Span,
 	) -> Option<InherentResolution> {
 		let recv = self.shallow_resolve(recv);
-		let recv = self.static_enum_view_ty(recv);
-		let head = head_of(&self.interner, recv)?;
-		let mut matches = Vec::new();
-		for idx in self.inherent.candidates(head) {
-			let Some(_) = self.inherent.impls[idx]
-				.methods
-				.get(name)
-				.filter(|method| !method.namespaced)
-			else {
-				continue;
-			};
-			let snapshot = self.table.snapshot();
-			let matched = self.inherent_receiver_matches(idx, recv);
-			self.table.rollback_to(snapshot);
-			if matched {
-				matches.push(idx);
+		let enum_view = self.static_enum_view_ty(recv);
+		for recv in [Some(recv), (enum_view != recv).then_some(enum_view)]
+			.into_iter()
+			.flatten()
+		{
+			let head = head_of(&self.interner, recv)?;
+			let mut matches = Vec::new();
+			for idx in self.inherent.candidates(head) {
+				let Some(_) = self.inherent.impls[idx]
+					.methods
+					.get(name)
+					.filter(|method| !method.namespaced)
+				else {
+					continue;
+				};
+				let snapshot = self.table.snapshot();
+				let matched = self.inherent_receiver_matches(idx, recv);
+				self.table.rollback_to(snapshot);
+				if matched {
+					matches.push(idx);
+				}
+			}
+			if matches.len() > 1 {
+				self.emit(span, TypeError::AmbiguousCall { name: name.into() });
+				return Some((Vec::new(), self.interner.error(), None, None, Vec::new()));
+			}
+			if let Some(idx) = matches.pop() {
+				let method = &self.inherent.impls[idx].methods[name];
+				let target = method.definition.clone();
+				let implementation = self.inherent.impls[idx].definition.clone();
+				let (params, ret, type_arguments) =
+					self.commit_inherent(idx, recv, name, None, span, false);
+				return Some((params, ret, target, implementation, type_arguments));
 			}
 		}
-		if matches.len() > 1 {
-			self.emit(span, TypeError::AmbiguousCall { name: name.into() });
-			return Some((Vec::new(), self.interner.error(), None, None, Vec::new()));
-		}
-		let idx = matches.pop()?;
-		let method = &self.inherent.impls[idx].methods[name];
-		let target = method.definition.clone();
-		let implementation = self.inherent.impls[idx].definition.clone();
-		let (params, ret, type_arguments) = self.commit_inherent(idx, recv, name, None, span, false);
-		Some((params, ret, target, implementation, type_arguments))
+		None
 	}
 
 	/// Resolve a namespaced function `Type.name(args)`.

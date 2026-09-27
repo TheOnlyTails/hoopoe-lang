@@ -56,6 +56,15 @@ fn narrowed_enum_variant_values_expose_their_fields() {
 }
 
 #[test]
+fn narrowed_enum_variant_values_use_variant_impl_methods() {
+	assert_ok(
+		"enum Choice { Item(value: int) func fallback(): int = 1 }\n\
+		 impl Choice.Item { func read(): int = this.value }\n\
+		 func read(item: Choice.Item): int = item.read() + item.fallback()",
+	);
+}
+
+#[test]
 fn inherent_method_omitted_return_infers_from_body() {
 	// `value()` has no return annotation; its type is inferred from the body and
 	// callers must see `int` (the shared return variable).

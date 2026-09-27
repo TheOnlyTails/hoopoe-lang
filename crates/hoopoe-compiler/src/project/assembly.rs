@@ -491,14 +491,26 @@ fn validate_shell_owner(
 
 fn resolve_shell(owner: &DefinitionId) -> Option<&DefinitionId> {
 	match &owner.key {
+		DeclarationKey::TopLevel { .. } | DeclarationKey::Member { .. } => resolve_nominal_shell(owner),
+		DeclarationKey::Implementation { header, .. } => match &header.self_type {
+			HeaderType::Named { definition, .. } => resolve_nominal_shell(definition),
+			_ => None,
+		},
+		_ => None,
+	}
+}
+
+fn resolve_nominal_shell(definition: &DefinitionId) -> Option<&DefinitionId> {
+	match &definition.key {
 		DeclarationKey::TopLevel {
 			category: DeclarationCategory::Struct | DeclarationCategory::Enum,
 			..
+		} => Some(definition),
+		DeclarationKey::Member {
+			owner,
+			category: DeclarationCategory::Variant,
+			..
 		} => Some(owner),
-		DeclarationKey::Implementation { header, .. } => match &header.self_type {
-			HeaderType::Named { definition, .. } => Some(definition),
-			_ => None,
-		},
 		_ => None,
 	}
 }
