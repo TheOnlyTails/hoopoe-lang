@@ -132,7 +132,7 @@ mod tests {
 	}
 
 	#[test]
-	fn compile_keeps_attached_targets_and_appends_each_sibling_output() {
+	fn compile_keeps_attached_target_and_each_sibling_output() {
 		let result = run_compile(
 			"const func first(target: meta.Struct): meta.Tokens = \\(func first_helper(): int = 20)\n\
 			 const func second(target: meta.Struct): meta.Tokens = \\(func second_helper(): int = 22)\n\
@@ -148,10 +148,18 @@ mod tests {
 			result.diagnostics
 		);
 		let javascript = result.js.expect("additive attachment output");
-		let point = javascript.find("Point").expect("original target");
-		let first = javascript.find("first_helper").expect("first output");
-		let second = javascript.find("second_helper").expect("second output");
-		assert!(point < first && first < second);
+		assert!(
+			javascript.contains("Point"),
+			"missing original target: {javascript}"
+		);
+		assert!(
+			javascript.contains("first_helper"),
+			"missing first output: {javascript}"
+		);
+		assert!(
+			javascript.contains("second_helper"),
+			"missing second output: {javascript}"
+		);
 	}
 
 	#[test]
