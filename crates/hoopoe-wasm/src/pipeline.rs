@@ -1,8 +1,7 @@
 //! Browser DTO adaptation around the stable compiler session pipeline.
 
 use hoopoe_compiler::{
-	CompiledEntryRoot, CompilerOptions, CompilerSession, EntryMode, ModulePath, ProjectId, Severity,
-	SourceVersion, compile_project_with_embedded_std_and_options,
+	CompiledEntryRoot, CompilerSession, EntryMode, ModulePath, ProjectId, Severity, SourceVersion,
 };
 use hoopoe_syntax::{lex, parse_module};
 
@@ -87,32 +86,52 @@ pub(crate) fn run_inspect(source: &str) -> InspectionResult {
 	let index = LineIndex::new(source);
 	let lexed = lex(source);
 	let tokens = token_views(source);
-	let run = compile_project_with_embedded_std_and_options(
-		"playground",
-		&|module| (module == "playground").then(|| source.to_owned()),
-		&CompilerOptions::default(),
-	)
-	.ok()
-	.and_then(|compiled| {
-		let root = compiled.entry_root?;
-		let (root_kind, task, binding) = match root {
-			CompiledEntryRoot::Void => ("void", false, None),
-			CompiledEntryRoot::Option { binding } => ("option", false, Some(binding)),
-			CompiledEntryRoot::Result { binding } => ("result", false, Some(binding)),
-			CompiledEntryRoot::TaskVoid => ("void", true, None),
-			CompiledEntryRoot::TaskOption { binding } => ("option", true, Some(binding)),
-			CompiledEntryRoot::TaskResult { binding } => ("result", true, Some(binding)),
-		};
-		let mut js = compiled.js;
-		if let Some(binding) = binding {
-			js.push_str(&format!("\nexport {{ {binding} as __hoopoeRootEnum }};\n"));
-		}
-		Some(RunArtifactView {
-			js,
-			root_kind,
-			task,
-		})
-	});
+	let project = ProjectId::new("playground");
+	let module = ModulePath::new("playground").expect("the playground module path is canonical");
+	let mut session = CompilerSession::new();
+	session.set_dead_code_elimination(true);
+	session.set_source(
+		project.clone(),
+		module.clone(),
+		source.to_owned(),
+		SourceVersion(1),
+	);
+	let entry = session.compile_project(project.clone(), module.clone(), EntryMode::Entry);
+	let entry_succeeded = entry.is_ok();
+	let (js, run) = if let Ok(compiled) = entry {
+		let display_js = session
+			.inspect_emitted_project(project.clone(), module.clone(), EntryMode::Entry)
+			.ok()
+			.and_then(|(mut sources, _)| sources.remove(module.as_str()));
+		let run = compiled.entry_root.as_ref().map(|root| {
+			let (root_kind, task, binding) = match root {
+				CompiledEntryRoot::Void => ("void", false, None),
+				CompiledEntryRoot::Option { binding } => ("option", false, Some(binding.clone())),
+				CompiledEntryRoot::Result { binding } => ("result", false, Some(binding.clone())),
+				CompiledEntryRoot::TaskVoid => ("void", true, None),
+				CompiledEntryRoot::TaskOption { binding } => ("option", true, Some(binding.clone())),
+				CompiledEntryRoot::TaskResult { binding } => ("result", true, Some(binding.clone())),
+			};
+			let mut js = compiled.js.clone();
+			if let Some(binding) = binding {
+				js.push_str(&format!("\nexport {{ {binding} as __hoopoeRootEnum }};\n"));
+			}
+			RunArtifactView {
+				js,
+				root_kind,
+				task,
+			}
+		});
+		(display_js, run)
+	} else {
+		(
+			session
+				.inspect_emitted_project(project.clone(), module.clone(), EntryMode::Library)
+				.ok()
+				.and_then(|(mut sources, _)| sources.remove(module.as_str())),
+			None,
+		)
+	};
 	let lex_failed = lexed
 		.diagnostics
 		.iter()
@@ -124,17 +143,13 @@ pub(crate) fn run_inspect(source: &str) -> InspectionResult {
 		.iter()
 		.any(|diagnostic| diagnostic.severity == Severity::Error);
 	let ast = format!("{:#?}", parsed.tree);
-	let project = ProjectId::new("playground");
-	let module = ModulePath::new("playground").expect("the playground module path is canonical");
-	let mut session = CompilerSession::new();
-	session.set_source(
-		project.clone(),
-		module.clone(),
-		source.to_owned(),
-		SourceVersion(1),
-	);
 	let types = session
-		.analyze_module(project, module.clone(), module, EntryMode::Library)
+		.analyze_module(
+			project.clone(),
+			module.clone(),
+			module.clone(),
+			EntryMode::Library,
+		)
 		.map(|analysis| {
 			analysis
 				.expression_type_state()
@@ -161,20 +176,22 @@ pub(crate) fn run_inspect(source: &str) -> InspectionResult {
 		})
 		.unwrap_or_default();
 
-	let report = hoopoe_compiler::compile_report(source, "playground");
 	let expansion = run_expand(source);
 	let expanded_tokens = expansion
 		.source
 		.as_deref()
 		.map_or_else(Vec::new, token_views);
-	let compile_failed = report
-		.diagnostics
+	let project_diagnostics = if entry_succeeded {
+		session.check_project(project, module, EntryMode::Entry)
+	} else {
+		session.check_project(project, module, EntryMode::Library)
+	};
+	let compile_failed = project_diagnostics
 		.iter()
-		.any(|diagnostic| diagnostic.severity == Severity::Error);
-	let diagnostics = report
-		.diagnostics
+		.any(|diagnostic| diagnostic.diag.severity == Severity::Error);
+	let diagnostics = project_diagnostics
 		.iter()
-		.map(|diagnostic| index.to_diag(source, "playground", diagnostic))
+		.map(|diagnostic| index.to_diag(source, "playground", &diagnostic.diag))
 		.collect::<Vec<_>>();
 
 	let syntax_failed = lex_failed || parse_failed;
@@ -230,12 +247,12 @@ pub(crate) fn run_inspect(source: &str) -> InspectionResult {
 		},
 		StageView {
 			name: "Lower & emit",
-			status: if report.js.is_some() {
+			status: if js.is_some() {
 				StageStatus::Complete
 			} else {
 				StageStatus::Blocked
 			},
-			detail: report.js.as_ref().map_or_else(
+			detail: js.as_ref().map_or_else(
 				|| "waiting for a clean analysis".to_owned(),
 				|js| format!("{} bytes of JavaScript", js.len()),
 			),
@@ -249,7 +266,7 @@ pub(crate) fn run_inspect(source: &str) -> InspectionResult {
 		stages,
 		expanded: expansion.source,
 		expanded_tokens,
-		js: report.js,
+		js,
 		run,
 		diagnostics,
 	}

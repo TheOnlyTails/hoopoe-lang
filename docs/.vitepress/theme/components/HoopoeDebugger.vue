@@ -87,12 +87,12 @@ const examples = {
 
 func main(): void = { let value = echo fibonacci(10) }
 `,
-	Types: `enum Shape {
+	Types: `public enum Shape {
 	Circle(radius: float),
 	Rectangle(width: float, height: float),
 }
 
-func area(shape: Shape): float = match (shape) {
+public func area(shape: Shape): float = match (shape) {
 	Shape.Circle(radius) -> 3.14159 * radius ** 2,
 	Shape.Rectangle(width, height) -> width * height,
 }
@@ -106,7 +106,7 @@ func area(shape: Shape): float = match (shape) {
 func broken(): int = greet("Hoopoe")
 `,
 	Metaprogramming: `const func make_answer(value: int): meta.Tokens =
-  \\(func answer(): int = $(value))
+  \\(public func answer(): int = $(value))
 
 $make_answer(42)
 `,

@@ -285,6 +285,24 @@ mod tests {
 	}
 
 	#[test]
+	fn inspect_displays_debug_javascript_without_dead_prelude_code() {
+		let result = run_inspect(
+			"func unused(): Option<int> = Some(value = 998877)\nfunc main(): void = { let value = echo 42 }\n",
+		);
+		let javascript = result.js.expect("clean entry emits JavaScript");
+		assert!(javascript.contains("from \"std/box\""), "{javascript}");
+		assert!(javascript.contains("hoopoeEcho"), "{javascript}");
+		assert!(!javascript.contains("unused"), "{javascript}");
+		assert!(!javascript.contains("998877n"), "{javascript}");
+		assert!(!javascript.contains("Option"), "{javascript}");
+		assert!(!javascript.contains("class NList"), "{javascript}");
+		assert!(
+			!javascript.contains("HoopoePersistentVector"),
+			"{javascript}"
+		);
+	}
+
+	#[test]
 	fn inspect_updates_generated_expansion_and_clears_it_on_failure() {
 		let expanded =
 			run_inspect("const func make(): meta.Tokens = \\(func answer(): int = 42)\n$(make())\n");

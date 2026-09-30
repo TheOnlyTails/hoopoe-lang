@@ -285,6 +285,8 @@ pub(crate) struct ProjectPolicyInput {
 	pub root_package: PackageId,
 	#[returns(copy)]
 	pub profile: BuildProfile,
+	#[returns(copy)]
+	pub eliminate_dead_code: bool,
 	#[returns(clone)]
 	pub lints: Arc<[LintSetting]>,
 }
@@ -534,6 +536,7 @@ pub struct CompilerSession {
 	policy_inputs: Mutex<BTreeMap<ProjectId, ProjectPolicyInput>>,
 	project_lints: BTreeMap<ProjectId, Arc<[LintSetting]>>,
 	build_profile: BuildProfile,
+	eliminate_dead_code: bool,
 	builtin_sources: BTreeMap<Arc<str>, Arc<str>>,
 	builtins: BTreeMap<BuiltinModuleKey, BuiltinModuleInput>,
 	builtin_registry: BuiltinRegistryInput,
@@ -1606,6 +1609,7 @@ impl CompilerSession {
 			policy_inputs: Mutex::new(BTreeMap::new()),
 			project_lints: BTreeMap::new(),
 			build_profile: BuildProfile::default(),
+			eliminate_dead_code: false,
 			builtin_sources,
 			builtins,
 			builtin_registry,
@@ -1918,6 +1922,20 @@ impl CompilerSession {
 		}
 	}
 
+	pub fn set_dead_code_elimination(&mut self, enabled: bool) {
+		if self.eliminate_dead_code == enabled {
+			return;
+		}
+		self.eliminate_dead_code = enabled;
+		let inputs = self
+			.policy_inputs
+			.get_mut()
+			.unwrap_or_else(|error| error.into_inner());
+		for input in inputs.values() {
+			input.set_eliminate_dead_code(&mut self.db).to(enabled);
+		}
+	}
+
 	pub fn set_project_lints(
 		&mut self,
 		project: ProjectId,
@@ -2152,6 +2170,7 @@ impl CompilerSession {
 				&self.db,
 				PackageId::root(project.clone()),
 				self.build_profile,
+				self.eliminate_dead_code,
 				self
 					.project_lints
 					.get(&project)

@@ -2788,7 +2788,8 @@ pub(crate) fn lower_runtime_definition<'db>(
 		artifact,
 		hoopoe_sema::StableLoweringOptions {
 			eliminate_dead_code: !key.preserve_names(db)
-				&& key.policy_input(db).profile(db) == super::session::BuildProfile::Release,
+				&& (key.policy_input(db).profile(db) == super::session::BuildProfile::Release
+					|| key.policy_input(db).eliminate_dead_code(db)),
 		},
 	)
 	.map(Arc::new)
@@ -2853,8 +2854,9 @@ pub(crate) fn lower_interface_module<'db>(
 	let declarations =
 		hoopoe_sema::top_level_declarations(module.identity(db), &module.project_parsed(db, key).tree);
 	let preserve_names = key.preserve_names(db);
-	let eliminate_dead_code =
-		!preserve_names && key.policy_input(db).profile(db) == super::session::BuildProfile::Release;
+	let eliminate_dead_code = !preserve_names
+		&& (key.policy_input(db).profile(db) == super::session::BuildProfile::Release
+			|| key.policy_input(db).eliminate_dead_code(db));
 	let entry_module = eliminate_dead_code
 		&& key.mode(db) == hoopoe_sema::EntryMode::Entry
 		&& module.display_key(db) == key.entry(db).as_str();
@@ -3916,6 +3918,7 @@ mod tests {
 			&db,
 			PackageId::root(project.clone()),
 			crate::project::BuildProfile::Development,
+			false,
 			Arc::new([]),
 		);
 		let input = ProjectInput::new(&db, project, modules, Arc::new([]));
