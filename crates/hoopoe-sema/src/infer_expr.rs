@@ -4047,7 +4047,12 @@ impl<'m> Checker<'m> {
 			(op, static_boolean(lhs)),
 			(BoolAnd, Some(false)) | (BoolOr, Some(true))
 		) {
-			self.emit(rhs.span, TypeError::UnreachableCode);
+			self.emit(
+				rhs.span,
+				TypeError::UnreachableCode {
+					causes: vec![lhs.span],
+				},
+			);
 		}
 
 		let l = self.infer(lhs);
@@ -4858,56 +4863,74 @@ impl<'m> Checker<'m> {
 	// ── Blocks ───────────────────────────────────────────────────────────────
 	fn warn_static_if(&mut self, condition: &Expr, then: &Expr, otherwise: Option<&Expr>) {
 		match static_boolean(condition) {
-			Some(false) => self.emit(then.span, TypeError::UnreachableCode),
+			Some(false) => self.emit(
+				then.span,
+				TypeError::UnreachableCode {
+					causes: vec![condition.span],
+				},
+			),
 			Some(true) => {
 				if let Some(otherwise) = otherwise {
-					self.emit(otherwise.span, TypeError::UnreachableCode);
+					self.emit(
+						otherwise.span,
+						TypeError::UnreachableCode {
+							causes: vec![condition.span],
+						},
+					);
 				}
 			}
 			None => {}
 		}
 	}
 
-	fn definitely_transfers(&self, expr: &Expr) -> bool {
+	fn exit_spans(&self, expr: &Expr) -> Option<Vec<Span>> {
 		if self.annotations.anon_boundary_arity(expr.id).is_some() {
-			return false;
+			return None;
 		}
 		match &expr.kind {
-			ExprKind::Break { .. } | ExprKind::Continue { .. } => true,
-			ExprKind::Grouped(value) => self.definitely_transfers(value),
+			ExprKind::Break { .. } | ExprKind::Continue { .. } => Some(vec![expr.span]),
+			ExprKind::Grouped(value) => self.exit_spans(value),
 			ExprKind::BinaryOp { lhs, op, rhs } => {
-				self.definitely_transfers(lhs)
-					|| match (*op, static_boolean(lhs)) {
+				self
+					.exit_spans(lhs)
+					.or_else(|| match (*op, static_boolean(lhs)) {
 						(BinaryOperator::BoolAnd, Some(true)) | (BinaryOperator::BoolOr, Some(false)) => {
-							self.definitely_transfers(rhs)
+							self.exit_spans(rhs)
 						}
-						_ => false,
-					}
+						_ => None,
+					})
 			}
 			ExprKind::If {
 				condition,
 				then,
 				otherwise,
-			} => {
-				self.definitely_transfers(condition)
-					|| match static_boolean(condition) {
-						Some(true) => self.definitely_transfers(then),
-						Some(false) => otherwise
-							.as_deref()
-							.is_some_and(|otherwise| self.definitely_transfers(otherwise)),
-						None => otherwise.as_deref().is_some_and(|otherwise| {
-							self.definitely_transfers(then) && self.definitely_transfers(otherwise)
-						}),
+			} => self
+				.exit_spans(condition)
+				.or_else(|| match static_boolean(condition) {
+					Some(true) => self.exit_spans(then),
+					Some(false) => otherwise
+						.as_deref()
+						.and_then(|otherwise| self.exit_spans(otherwise)),
+					None => {
+						let mut causes = self.exit_spans(then)?;
+						causes.extend(self.exit_spans(otherwise.as_deref()?)?);
+						Some(causes)
 					}
-			}
-			ExprKind::Match { value, arms } => {
-				self.definitely_transfers(value)
-					|| (!arms.is_empty() && arms.iter().all(|arm| self.definitely_transfers(&arm.body)))
-			}
+				}),
+			ExprKind::Match { value, arms } => self.exit_spans(value).or_else(|| {
+				if arms.is_empty() {
+					return None;
+				}
+				arms.iter().try_fold(Vec::new(), |mut causes, arm| {
+					causes.extend(self.exit_spans(&arm.body)?);
+					Some(causes)
+				})
+			}),
 			_ => self
 				.annotations
 				.get(expr.id)
-				.is_some_and(|info| matches!(self.interner.kind(info.ty), TyKind::Never)),
+				.is_some_and(|info| matches!(self.interner.kind(info.ty), TyKind::Never))
+				.then(|| vec![expr.span]),
 		}
 	}
 
@@ -4915,19 +4938,24 @@ impl<'m> Checker<'m> {
 		self.push_scope();
 		let void = self.interner.void();
 		let mut result = void;
-		let mut reachable = true;
+		let mut exit_spans: Option<Vec<Span>> = None;
 		let last = body.len().saturating_sub(1);
 		for (i, stmt) in body.iter().enumerate() {
-			if !reachable {
-				self.emit(stmt.1, TypeError::UnreachableCode);
+			if let Some(causes) = &exit_spans {
+				self.emit(
+					stmt.1,
+					TypeError::UnreachableCode {
+						causes: causes.clone(),
+					},
+				);
 			}
 			match &stmt.0 {
 				Statement::Let { meta, value } => {
 					self.check_let_statement(meta, value);
 					let ty = self.annotations.get(value.id).map_or(void, |info| info.ty);
-					if reachable {
-						reachable = !self.definitely_transfers(value);
-						result = if reachable { void } else { ty };
+					if exit_spans.is_none() {
+						exit_spans = self.exit_spans(value);
+						result = if exit_spans.is_none() { void } else { ty };
 					}
 				}
 				Statement::Expr(expr) => {
@@ -4942,9 +4970,13 @@ impl<'m> Checker<'m> {
 					} else {
 						self.infer(expr)
 					};
-					if reachable {
-						reachable = !self.definitely_transfers(expr);
-						result = if i == last || !reachable { ty } else { void };
+					if exit_spans.is_none() {
+						exit_spans = self.exit_spans(expr);
+						result = if i == last || exit_spans.is_some() {
+							ty
+						} else {
+							void
+						};
 					}
 				}
 			}

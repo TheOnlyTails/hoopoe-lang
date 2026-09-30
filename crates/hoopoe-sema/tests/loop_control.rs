@@ -1,14 +1,20 @@
+use hoopoe_diagnostics::Diagnostic;
 use hoopoe_sema::check_module;
 use hoopoe_syntax::parse_module;
 
-fn messages(source: &str) -> Vec<String> {
+fn diagnostics(source: &str) -> (String, Vec<Diagnostic>) {
 	let source = format!(
 		"enum Option<T> {{ Some(value: T), None }}\nenum Result<T, E> {{ Ok(value: T), Error(error: E) }}\n{source}"
 	);
 	let parsed = parse_module(&source, "test");
 	assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-	check_module(&parsed.tree)
-		.diags
+	let diagnostics = check_module(&parsed.tree).diags;
+	(source, diagnostics)
+}
+
+fn messages(source: &str) -> Vec<String> {
+	diagnostics(source)
+		.1
 		.into_iter()
 		.map(|diagnostic| diagnostic.message.to_string())
 		.collect()
@@ -79,6 +85,36 @@ fn statements_after_a_guaranteed_transfer_are_unreachable() {
 		messages("func value(flag: boolean): int = { if (flag) { break 1 } 2 }").is_empty(),
 		"a transfer in only one branch must not make following code unreachable"
 	);
+}
+
+#[test]
+fn unreachable_warnings_label_every_expression_that_exits_before_the_dead_code() {
+	let (source, found) = diagnostics(
+		"func value(input: boolean): int = { match (input) { true -> break 1, false -> break 2 } 3 }",
+	);
+	let warning = found
+		.iter()
+		.find(|diagnostic| diagnostic.message == "unreachable code")
+		.expect("expected an unreachable-code warning");
+	let labeled = warning
+		.labels
+		.iter()
+		.map(|label| &source[label.span.start..label.span.end])
+		.collect::<Vec<_>>();
+	assert_eq!(labeled, ["break 1", "break 2"]);
+	assert_eq!(
+		warning.help.as_deref(),
+		Some("remove this code or change the labeled expression")
+	);
+
+	let (source, found) = diagnostics("func value(): int = if (false) 7 else 9");
+	let warning = found
+		.iter()
+		.find(|diagnostic| diagnostic.message == "unreachable code")
+		.expect("expected an unreachable-code warning");
+	assert_eq!(warning.labels.len(), 1);
+	let cause = &source[warning.labels[0].span.start..warning.labels[0].span.end];
+	assert!(cause.contains("false"), "unexpected cause span: {cause:?}");
 }
 
 #[test]
