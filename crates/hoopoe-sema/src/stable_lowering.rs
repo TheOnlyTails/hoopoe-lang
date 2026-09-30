@@ -224,6 +224,7 @@ pub struct StableHirModule {
 	pub module: ModuleIdentity,
 	pub hir: HirModule,
 	pub own_definitions: Vec<DefinitionId>,
+	pub eliminated_definitions: Vec<DefinitionId>,
 	pub fragments: Vec<LoweredRuntimeDefinition>,
 	pub imports: Vec<DefinitionId>,
 	pub virtual_runtime: Vec<VirtualRuntimeFragment>,
@@ -2975,21 +2976,9 @@ impl<C: StableLoweringContext> StableBodyLowerer<'_, C> {
 		if self.annotations.anonymous_closure_arity(node).is_some() {
 			return false;
 		}
-		if self
-			.annotations
-			.type_of(node)
-			.is_some_and(|ty| matches!(peel_mut(ty), InterfaceType::Never))
-		{
-			return true;
-		}
 		match &expr.kind {
 			StableExprKind::Break { .. } | StableExprKind::Continue { .. } => true,
 			StableExprKind::Grouped(value) => self.definitely_transfers(value),
-			StableExprKind::Block { body, .. } => body.iter().any(|statement| {
-				self.definitely_transfers(match statement {
-					StableStatement::Let { value, .. } | StableStatement::Expr(value) => value,
-				})
-			}),
 			StableExprKind::If {
 				condition,
 				then,
@@ -3004,7 +2993,10 @@ impl<C: StableLoweringContext> StableBodyLowerer<'_, C> {
 				self.definitely_transfers(value)
 					|| (!arms.is_empty() && arms.iter().all(|arm| self.definitely_transfers(&arm.body)))
 			}
-			_ => false,
+			_ => self
+				.annotations
+				.type_of(node)
+				.is_some_and(|ty| matches!(peel_mut(ty), InterfaceType::Never)),
 		}
 	}
 	fn builtin_result(&self, expr: &StableExpr) -> Result<BuiltinResult, StableLoweringError> {
@@ -7077,6 +7069,9 @@ impl<C: StableLoweringContext> StableBodyLowerer<'_, C> {
 		let mut tail = None;
 		for (index, statement) in body.iter().enumerate() {
 			let last = index + 1 == body.len();
+			let transfers = self.definitely_transfers(match statement {
+				StableStatement::Let { value, .. } | StableStatement::Expr(value) => value,
+			});
 			match statement {
 				StableStatement::Let {
 					pattern,
@@ -7123,6 +7118,9 @@ impl<C: StableLoweringContext> StableBodyLowerer<'_, C> {
 					tail = Some(Box::new(lowered));
 				}
 				StableStatement::Expr(expr) => stmts.push(HirStmt::Expr(self.lower(expr)?)),
+			}
+			if transfers {
+				break;
 			}
 		}
 		Ok(HirExpr::Block { stmts, tail })

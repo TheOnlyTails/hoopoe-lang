@@ -70,6 +70,52 @@ fn apply_semantic_lint(
 	}
 }
 
+fn dead_code_diagnostics(
+	db: &dyn Db,
+	key: ProjectKey<'_>,
+	module: SemanticModuleInput,
+) -> Vec<ProjectDiagnostic> {
+	if key.preserve_names(db) {
+		return Vec::new();
+	}
+	let SemanticModuleInput::Project(input) = module else {
+		return Vec::new();
+	};
+	let level = effective_lint_level(
+		db,
+		key.policy_input(db),
+		input.package(db),
+		Arc::from("unused"),
+		LintLevel::Warn,
+	);
+	if level == LintLevel::Allow {
+		return Vec::new();
+	}
+	let Ok(lowered) = lower_interface_module(db, key, module) else {
+		return Vec::new();
+	};
+	let eliminated = lowered
+		.eliminated_definitions
+		.iter()
+		.collect::<std::collections::HashSet<_>>();
+	hoopoe_sema::top_level_declarations(module.identity(db), &module.project_parsed(db, key).tree)
+		.into_iter()
+		.filter(|declaration| eliminated.contains(&declaration.definition))
+		.map(|declaration| {
+			let message = format!("`{}` is never used", declaration.name);
+			let mut diag = Diagnostic::warning("unused".into(), message, declaration.name_span)
+				.with_help("remove this declaration or use it from reachable code");
+			if level == LintLevel::Deny {
+				diag.severity = hoopoe_diagnostics::Severity::Error;
+			}
+			ProjectDiagnostic {
+				module: module.display_key(db),
+				diag,
+			}
+		})
+		.collect()
+}
+
 #[salsa::tracked(returns(clone))]
 fn policy_project_diagnostics(
 	db: &dyn Db,
@@ -87,32 +133,35 @@ fn policy_project_diagnostics(
 		Arc::from("echo-in-release"),
 		LintLevel::Warn,
 	);
-	if level == LintLevel::Allow {
-		return super::session::ProjectDiagnostics(Arc::new([]));
-	}
 	let mut diagnostics = Vec::new();
-	for module in key.project_input(db).active_modules(db).iter().copied() {
-		if module.package(db) != root_package {
-			continue;
-		}
-		let module_name = module.path(db).to_string();
-		for span in hoopoe_sema::query::echo_sites(
-			&SemanticModuleInput::Project(module)
-				.project_parsed(db, key)
-				.tree,
-		) {
-			let message = "`echo` is erased from release builds";
-			let diagnostic = match level {
-				LintLevel::Allow => unreachable!(),
-				LintLevel::Warn => Diagnostic::warning("echo-in-release".into(), message, span),
-				LintLevel::Deny => Diagnostic::error("echo-in-release".into(), message, span),
+	if level != LintLevel::Allow {
+		for module in key.project_input(db).active_modules(db).iter().copied() {
+			if module.package(db) != root_package {
+				continue;
 			}
-			.with_help("use `println` or telemetry for intentional release output");
-			diagnostics.push(ProjectDiagnostic {
-				module: module_name.clone(),
-				diag: diagnostic,
-			});
+			let module_name = module.path(db).to_string();
+			for span in hoopoe_sema::query::echo_sites(
+				&SemanticModuleInput::Project(module)
+					.project_parsed(db, key)
+					.tree,
+			) {
+				let message = "`echo` is erased from release builds";
+				let diagnostic = match level {
+					LintLevel::Allow => unreachable!(),
+					LintLevel::Warn => Diagnostic::warning("echo-in-release".into(), message, span),
+					LintLevel::Deny => Diagnostic::error("echo-in-release".into(), message, span),
+				}
+				.with_help("use `println` or telemetry for intentional release output");
+				diagnostics.push(ProjectDiagnostic {
+					module: module_name.clone(),
+					diag: diagnostic,
+				});
+			}
 		}
+	}
+	let graph = project_graph(db, key);
+	for module in graph.semantic_order.iter().copied() {
+		diagnostics.extend(dead_code_diagnostics(db, key, module));
 	}
 	super::session::ProjectDiagnostics(diagnostics.into())
 }
@@ -2723,23 +2772,47 @@ pub(crate) fn lower_interface_module<'db>(
 			module: module.identity(db),
 		},
 	})?;
+	let declarations =
+		hoopoe_sema::top_level_declarations(module.identity(db), &module.project_parsed(db, key).tree);
+	let preserve_names = key.preserve_names(db);
+	let eliminate_dead_code =
+		!preserve_names && key.policy_input(db).profile(db) == super::session::BuildProfile::Release;
+	let entry_module = eliminate_dead_code
+		&& key.mode(db) == hoopoe_sema::EntryMode::Entry
+		&& module.display_key(db) == key.entry(db).as_str();
 	// Interface default bodies are canonical templates, not independently
 	// emitted methods. Only a demanded materialized implementation may lower
 	// and attach one to a concrete runtime owner.
 	let mut queue = own
 		.iter()
 		.filter(|definition| {
-			!matches!(
-				&definition.key,
-				hoopoe_sema::DeclarationKey::Member { owner, .. }
-					if matches!(
-						owner.key,
-						hoopoe_sema::DeclarationKey::TopLevel {
-							category: hoopoe_sema::DeclarationCategory::Interface,
-							..
-						}
-					)
-			)
+			let runtime_root = !eliminate_dead_code
+				|| match &definition.key {
+					hoopoe_sema::DeclarationKey::TopLevel { category, name, .. } => {
+						*category == hoopoe_sema::DeclarationCategory::Let
+							|| if entry_module {
+								*category == hoopoe_sema::DeclarationCategory::Function && name == "main"
+							} else {
+								declarations.iter().any(|declaration| {
+									declaration.definition == **definition
+										&& declaration.visibility != hoopoe_sema::NamespaceVisibility::Private
+								})
+							}
+					}
+					_ => !entry_module,
+				};
+			runtime_root
+				&& !matches!(
+					&definition.key,
+					hoopoe_sema::DeclarationKey::Member { owner, .. }
+						if matches!(
+							owner.key,
+							hoopoe_sema::DeclarationKey::TopLevel {
+								category: hoopoe_sema::DeclarationCategory::Interface,
+								..
+							}
+						)
+				)
 		})
 		.cloned()
 		.collect::<std::collections::VecDeque<_>>();
@@ -2879,10 +2952,16 @@ pub(crate) fn lower_interface_module<'db>(
 			fragment: item.clone(),
 		})
 		.collect();
+	let eliminated_definitions = own
+		.iter()
+		.filter(|definition| !seen.contains(*definition))
+		.cloned()
+		.collect();
 	Ok(Arc::new(hoopoe_sema::StableHirModule {
 		module: module.identity(db),
 		hir,
 		own_definitions: own.to_vec(),
+		eliminated_definitions,
 		fragments: lowered,
 		imports,
 		virtual_runtime,

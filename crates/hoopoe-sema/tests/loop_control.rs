@@ -54,14 +54,31 @@ fn question_propagation_checks_family_target_and_result_error() {
 #[test]
 fn every_explicit_block_is_a_break_target() {
 	for source in [
-		"func direct(): int = { break 1 2 }",
-		"func nested(): int = { let value = { break 1 2 } value }",
-		"func branch(flag: boolean): int = if (flag) { break 1 2 } else { 3 }",
+		"func direct(): int = { break 1 }",
+		"func nested(): int = { let value = { break 1 } value }",
+		"func branch(flag: boolean): int = if (flag) { break 1 } else { 3 }",
 		"func expression_body(): int = break 1",
 	] {
 		let found = messages(source);
 		assert!(found.is_empty(), "{source}: {found:?}");
 	}
+}
+
+#[test]
+fn statements_after_a_guaranteed_transfer_are_unreachable() {
+	let found = messages("func value(): int = { break 1 let discarded = 2 discarded }");
+	assert_eq!(
+		found
+			.iter()
+			.filter(|message| message.as_str() == "unreachable code")
+			.count(),
+		2,
+		"{found:?}"
+	);
+	assert!(
+		messages("func value(flag: boolean): int = { if (flag) { break 1 } 2 }").is_empty(),
+		"a transfer in only one branch must not make following code unreachable"
+	);
 }
 
 #[test]

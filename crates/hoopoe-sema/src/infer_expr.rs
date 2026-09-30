@@ -4814,28 +4814,68 @@ impl<'m> Checker<'m> {
 	}
 
 	// ── Blocks ───────────────────────────────────────────────────────────────
+	fn definitely_transfers(&self, expr: &Expr) -> bool {
+		if self.annotations.anon_boundary_arity(expr.id).is_some() {
+			return false;
+		}
+		match &expr.kind {
+			ExprKind::Break { .. } | ExprKind::Continue { .. } => true,
+			ExprKind::Grouped(value) => self.definitely_transfers(value),
+			ExprKind::If {
+				condition,
+				then,
+				otherwise,
+			} => {
+				self.definitely_transfers(condition)
+					|| otherwise.as_deref().is_some_and(|otherwise| {
+						self.definitely_transfers(then) && self.definitely_transfers(otherwise)
+					})
+			}
+			ExprKind::Match { value, arms } => {
+				self.definitely_transfers(value)
+					|| (!arms.is_empty() && arms.iter().all(|arm| self.definitely_transfers(&arm.body)))
+			}
+			_ => self
+				.annotations
+				.get(expr.id)
+				.is_some_and(|info| matches!(self.interner.kind(info.ty), TyKind::Never)),
+		}
+	}
+
 	fn infer_block(&mut self, body: &[Spanned<Statement>], expected: Option<Ty>) -> Ty {
 		self.push_scope();
 		let void = self.interner.void();
 		let mut result = void;
+		let mut reachable = true;
 		let last = body.len().saturating_sub(1);
 		for (i, stmt) in body.iter().enumerate() {
+			if !reachable {
+				self.emit(stmt.1, TypeError::UnreachableCode);
+			}
 			match &stmt.0 {
 				Statement::Let { meta, value } => {
 					self.check_let_statement(meta, value);
-					result = void;
+					let ty = self.annotations.get(value.id).map_or(void, |info| info.ty);
+					if reachable {
+						reachable = !self.definitely_transfers(value);
+						result = if reachable { void } else { ty };
+					}
 				}
 				Statement::Expr(expr) => {
-					if i == last {
-						result = match expected {
+					let ty = if i == last {
+						match expected {
 							Some(exp) => {
 								self.check(expr, exp);
 								exp
 							}
 							None => self.infer(expr),
-						};
+						}
 					} else {
-						self.infer(expr);
+						self.infer(expr)
+					};
+					if reachable {
+						reachable = !self.definitely_transfers(expr);
+						result = if i == last || !reachable { ty } else { void };
 					}
 				}
 			}

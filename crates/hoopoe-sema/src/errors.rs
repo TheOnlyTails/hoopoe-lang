@@ -489,6 +489,8 @@ pub enum TypeError {
 	RetiredEnumWrapperPattern,
 	/// Metaprogramming syntax reached ordinary semantic checking before expansion.
 	UnexpandedMetaprogramming,
+	/// A statement follows an expression that cannot complete normally. **Warning.**
+	UnreachableCode,
 }
 
 impl IntoDiagnostic for TypeError {
@@ -756,6 +758,7 @@ impl IntoDiagnostic for TypeError {
 			E::UnexpandedMetaprogramming => {
 				"compile-time metaprogramming must be expanded before type checking".into()
 			}
+			E::UnreachableCode => "unreachable code".into(),
 			E::PositionalStructField => "struct fields must be supplied by name (`field = value`)".into(),
 			E::InvalidStructSpread => "a struct clone/update requires exactly one leading source spread".into(),
 			E::DuplicateStructField { field } => format!("struct field `{field}` is supplied more than once").into(),
@@ -781,6 +784,7 @@ impl IntoDiagnostic for TypeError {
 	fn severity(&self) -> Severity {
 		match self {
 			TypeError::UnreachableArm
+			| TypeError::UnreachableCode
 			| TypeError::ManagedFieldWithoutClose { .. }
 			| TypeError::ManagedChildCapture { .. } => Severity::Warning,
 			_ => Severity::Error,
@@ -829,6 +833,9 @@ impl IntoDiagnostic for TypeError {
 	fn help(&self) -> Option<EcoString> {
 		match self {
 			TypeError::UnreachableArm => Some("a previous arm already covers this case".into()),
+			TypeError::UnreachableCode => {
+				Some("remove this statement or the control transfer before it".into())
+			}
 			TypeError::DuplicateMember { name, .. } => {
 				Some(format!("rename one of the `{name}` members to remove the collision").into())
 			}
