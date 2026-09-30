@@ -442,7 +442,7 @@ fn entry_reachability_eliminates_unused_code_and_its_ambient_prelude_demands() {
 	session.set_source(
 		project.clone(),
 		main.clone(),
-		"func used(): int = { false && (555666777 == 555666777) if (1 == 0) { 123456789 } if (1 + 1 == 2) break 1 987654321 }\nfunc unused(): Option<int> = Some(value = 2)\npublic func main(): void = { let value = used() }"
+		"func used(): int = { false && (555666777 == 555666777) if (1 == 0) { 123456789 } if (1 + 1 == 2) break 1 987654321 }\nfunc unused(): Option<int> = Some(value = 2)\npublic func main(): void = if (used() == 1) break else break"
 			.into(),
 		SourceVersion(1),
 	);
@@ -512,6 +512,169 @@ fn entry_reachability_eliminates_unused_code_and_its_ambient_prelude_demands() {
 	assert!(
 		!source.contains("Option"),
 		"unused prelude was emitted: {source}"
+	);
+}
+
+#[test]
+fn release_eliminates_transitively_unused_locals_top_level_values_and_prelude() {
+	let mut session = CompilerSession::new();
+	session.set_build_profile(BuildProfile::Release);
+	let project = ProjectId::new("transitive-local-dead-code");
+	let main = ModulePath::new("main").unwrap();
+	session.set_source(
+		project.clone(),
+		main.clone(),
+		"let unused_option = Some(value = 998877)\n\
+		 func fibonacci(n: int): int = n\n\
+		 func local_only(): Option<int> = Some(value = 776655)\n\
+		 public func main(): void = {\n\
+		   let first = local_only()\n\
+		   let second = first\n\
+		   if (false) { fibonacci(10) break } else break\n\
+		 }"
+		.into(),
+		SourceVersion(1),
+	);
+
+	let diagnostics = session.check_project(project.clone(), main.clone(), EntryMode::Entry);
+	for name in [
+		"unused_option",
+		"fibonacci",
+		"local_only",
+		"first",
+		"second",
+	] {
+		assert!(
+			diagnostics.iter().any(|diagnostic| {
+				diagnostic.diag.code == "unused" && diagnostic.diag.message.contains(&format!("`{name}`"))
+			}),
+			"missing unused warning for {name}: {diagnostics:?}"
+		);
+	}
+	let emitted = session
+		.emit_interface_project_for_test(project, main, EntryMode::Entry)
+		.expect("dead locals and their dependency closure are eliminated");
+	let source = &emitted.module_sources["main"];
+	for dead in [
+		"fibonacci",
+		"local_only",
+		"unused_option",
+		"998877n",
+		"776655n",
+		"10n",
+		"Option",
+	] {
+		assert!(
+			!source.contains(dead),
+			"dead `{dead}` was emitted: {source}"
+		);
+	}
+}
+
+#[test]
+fn release_removes_an_unused_binding_but_preserves_its_effectful_initializer() {
+	let mut session = CompilerSession::new();
+	session.set_build_profile(BuildProfile::Release);
+	let project = ProjectId::new("effectful-unused-local");
+	let main = ModulePath::new("main").unwrap();
+	session.set_source(
+		project.clone(),
+		main.clone(),
+		"effect Io\nfunc touch(): int + !Io = 424242\npublic func main(): void + !Io = { let discarded = touch() break }"
+			.into(),
+		SourceVersion(1),
+	);
+
+	let diagnostics = session.check_project(project.clone(), main.clone(), EntryMode::Entry);
+	assert!(diagnostics.iter().any(|diagnostic| {
+		diagnostic.diag.code == "unused" && diagnostic.diag.message.contains("`discarded`")
+	}));
+	let emitted = session
+		.emit_interface_project_for_test(project, main, EntryMode::Entry)
+		.expect("effectful initializer still emits");
+	let source = &emitted.module_sources["main"];
+	assert!(
+		source.contains("touch"),
+		"effectful call was removed: {source}"
+	);
+	assert!(
+		source.contains("424242n"),
+		"effectful callee was removed: {source}"
+	);
+	assert!(
+		!source.contains("discarded"),
+		"unused binding was emitted: {source}"
+	);
+}
+
+#[test]
+fn release_tracks_shadowed_locals_by_declaration_identity() {
+	let mut session = CompilerSession::new();
+	session.set_build_profile(BuildProfile::Release);
+	let project = ProjectId::new("shadowed-local-dead-code");
+	let main = ModulePath::new("main").unwrap();
+	session.set_source(
+		project.clone(),
+		main.clone(),
+		"public func main(): void = { let value = 112233 let value = 445566 if (value == 445566) break else break }"
+			.into(),
+		SourceVersion(1),
+	);
+
+	let diagnostics = session.check_project(project.clone(), main.clone(), EntryMode::Entry);
+	assert_eq!(
+		diagnostics
+			.iter()
+			.filter(|diagnostic| {
+				diagnostic.diag.code == "unused" && diagnostic.diag.message.contains("`value`")
+			})
+			.count(),
+		1,
+		"only the shadowed declaration is unused: {diagnostics:?}"
+	);
+	let emitted = session
+		.emit_interface_project_for_test(project, main, EntryMode::Entry)
+		.expect("the live shadow remains emitted");
+	let source = &emitted.module_sources["main"];
+	assert!(
+		!source.contains("112233n"),
+		"dead shadow was emitted: {source}"
+	);
+	assert!(
+		source.contains("445566n"),
+		"live shadow was removed: {source}"
+	);
+}
+
+#[test]
+fn release_preserves_an_effectful_unused_top_level_initializer() {
+	let mut session = CompilerSession::new();
+	session.set_build_profile(BuildProfile::Release);
+	let project = ProjectId::new("effectful-unused-top-level");
+	let main = ModulePath::new("main").unwrap();
+	session.set_source(
+		project.clone(),
+		main.clone(),
+		"effect Io\nfunc touch(): int + !Io = 667788\nlet discarded = touch()\npublic func main(): void = {}"
+			.into(),
+		SourceVersion(1),
+	);
+
+	let diagnostics = session.check_project(project.clone(), main.clone(), EntryMode::Entry);
+	assert!(diagnostics.iter().any(|diagnostic| {
+		diagnostic.diag.code == "unused" && diagnostic.diag.message.contains("`discarded`")
+	}));
+	let emitted = session
+		.emit_interface_project_for_test(project, main, EntryMode::Entry)
+		.expect("effectful top-level initializer still emits");
+	let source = &emitted.module_sources["main"];
+	assert!(
+		source.contains("touch"),
+		"effectful call was removed: {source}"
+	);
+	assert!(
+		source.contains("667788n"),
+		"effectful callee was removed: {source}"
 	);
 }
 

@@ -52,6 +52,348 @@ fn static_boolean(expr: &StableExpr) -> Option<bool> {
 	static_value(expr)?.boolean()
 }
 
+fn stable_dispatch_is_pure(expr: &StableExpr, annotations: &crate::RuntimeAnnotations) -> bool {
+	match annotations.dispatch(expr.id) {
+		None | Some(crate::StableDispatch::Builtin { .. }) => true,
+		Some(_) => annotations.is_pure_dispatch(expr.id),
+	}
+}
+
+fn stable_expr_is_pure(expr: &StableExpr, annotations: &crate::RuntimeAnnotations) -> bool {
+	let pure = |expr| stable_expr_is_pure(expr, annotations);
+	match &expr.kind {
+		StableExprKind::Int(_)
+		| StableExprKind::UInt(_)
+		| StableExprKind::Float(_)
+		| StableExprKind::Char(_)
+		| StableExprKind::Boolean(_)
+		| StableExprKind::Identifier(_)
+		| StableExprKind::AnonymousParam(_)
+		| StableExprKind::Closure { .. }
+		| StableExprKind::AsyncBlock(_)
+		| StableExprKind::This => true,
+		StableExprKind::String(parts) => parts.iter().all(|part| match part {
+			StableStringPart::Text(_) | StableStringPart::Escape(_) => true,
+			StableStringPart::Expr(value) => pure(value),
+		}),
+		StableExprKind::List(items) | StableExprKind::Tuple(items) => {
+			items.iter().all(|item| match item {
+				StableListItem::Expr(value) | StableListItem::Spread(value) => pure(value),
+			})
+		}
+		StableExprKind::Map(entries) => entries.iter().all(|entry| match entry {
+			StableMapEntry::Entry(key, value) => pure(key) && pure(value),
+			StableMapEntry::Spread(value) => pure(value),
+		}),
+		StableExprKind::Range(range) => match range {
+			StableRange::From(value) | StableRange::To(value) | StableRange::ToInclusive(value) => {
+				pure(value)
+			}
+			StableRange::Exclusive { min, max } | StableRange::Inclusive { min, max } => {
+				pure(min) && pure(max)
+			}
+		},
+		StableExprKind::Call { func, args } => {
+			(annotations.is_pure_call(expr.id)
+				|| annotations.variant(expr.id).is_some()
+				|| annotations.struct_construction(expr.id).is_some())
+				&& pure(func)
+				&& args.iter().all(|argument| pure(&argument.value))
+		}
+		StableExprKind::MemberAccess { parent, .. } => pure(parent),
+		StableExprKind::IndexAccess { parent, index, .. } => {
+			stable_dispatch_is_pure(expr, annotations) && pure(parent) && pure(index)
+		}
+		StableExprKind::Await(_)
+		| StableExprKind::Break { .. }
+		| StableExprKind::Continue { .. }
+		| StableExprKind::Echo { .. }
+		| StableExprKind::For { .. }
+		| StableExprKind::StateLoop { .. }
+		| StableExprKind::PostfixOp { .. } => false,
+		StableExprKind::PrefixOp { value, .. } | StableExprKind::TypeOp { lhs: value, .. } => {
+			stable_dispatch_is_pure(expr, annotations) && pure(value)
+		}
+		StableExprKind::BinaryOp { lhs, op, rhs } => {
+			let operation_is_pure = if *op == BinaryOperator::Pipe {
+				annotations.is_pure_call(expr.id)
+			} else {
+				stable_dispatch_is_pure(expr, annotations)
+			};
+			operation_is_pure
+				&& pure(lhs)
+				&& match (*op, static_boolean(lhs)) {
+					(BinaryOperator::BoolAnd, Some(false)) | (BinaryOperator::BoolOr, Some(true)) => true,
+					_ => pure(rhs),
+				}
+		}
+		StableExprKind::PatternOp { lhs, .. } => {
+			stable_dispatch_is_pure(expr, annotations) && pure(lhs)
+		}
+		StableExprKind::If {
+			condition,
+			then,
+			otherwise,
+		} => {
+			pure(condition)
+				&& match static_boolean(condition) {
+					Some(true) => pure(then),
+					Some(false) => otherwise.as_deref().is_none_or(pure),
+					None => pure(then) && otherwise.as_deref().is_none_or(pure),
+				}
+		}
+		StableExprKind::Match { value, arms } => {
+			pure(value)
+				&& arms
+					.iter()
+					.all(|arm| arm.guard.as_ref().is_none_or(&pure) && pure(&arm.body))
+		}
+		StableExprKind::Block { body, .. } => body.iter().all(|statement| match statement {
+			StableStatement::Expr(value) => pure(value),
+			StableStatement::Let { managed, value, .. } => !managed && pure(value),
+		}),
+		StableExprKind::Grouped(value) => pure(value),
+	}
+}
+
+fn stable_expr_definitely_transfers(
+	expr: &StableExpr,
+	annotations: &crate::RuntimeAnnotations,
+) -> bool {
+	if annotations.anonymous_closure_arity(expr.id).is_some() {
+		return false;
+	}
+	match &expr.kind {
+		StableExprKind::Break { .. } | StableExprKind::Continue { .. } => true,
+		StableExprKind::Grouped(value) => stable_expr_definitely_transfers(value, annotations),
+		StableExprKind::BinaryOp { lhs, op, rhs } => {
+			stable_expr_definitely_transfers(lhs, annotations)
+				|| match (*op, static_boolean(lhs)) {
+					(BinaryOperator::BoolAnd, Some(true)) | (BinaryOperator::BoolOr, Some(false)) => {
+						stable_expr_definitely_transfers(rhs, annotations)
+					}
+					_ => false,
+				}
+		}
+		StableExprKind::If {
+			condition,
+			then,
+			otherwise,
+		} => {
+			stable_expr_definitely_transfers(condition, annotations)
+				|| match static_boolean(condition) {
+					Some(true) => stable_expr_definitely_transfers(then, annotations),
+					Some(false) => otherwise
+						.as_deref()
+						.is_some_and(|otherwise| stable_expr_definitely_transfers(otherwise, annotations)),
+					None => otherwise.as_deref().is_some_and(|otherwise| {
+						stable_expr_definitely_transfers(then, annotations)
+							&& stable_expr_definitely_transfers(otherwise, annotations)
+					}),
+				}
+		}
+		StableExprKind::Match { value, arms } => {
+			stable_expr_definitely_transfers(value, annotations)
+				|| (!arms.is_empty()
+					&& arms
+						.iter()
+						.all(|arm| stable_expr_definitely_transfers(&arm.body, annotations)))
+		}
+		_ => annotations
+			.type_of(expr.id)
+			.is_some_and(|ty| matches!(peel_mut(ty), InterfaceType::Never)),
+	}
+}
+
+fn collect_local_references(
+	expr: &StableExpr,
+	annotations: &crate::RuntimeAnnotations,
+	references: &mut HashSet<crate::PatternNodeId>,
+) {
+	if let Some(target) = annotations.local_definition_target(expr.id) {
+		references.insert(target);
+	}
+	let mut collect = |child| collect_local_references(child, annotations, references);
+	match &expr.kind {
+		StableExprKind::Int(_)
+		| StableExprKind::UInt(_)
+		| StableExprKind::Float(_)
+		| StableExprKind::Char(_)
+		| StableExprKind::Boolean(_)
+		| StableExprKind::Identifier(_)
+		| StableExprKind::AnonymousParam(_)
+		| StableExprKind::This => {}
+		StableExprKind::String(parts) => {
+			for part in parts.iter() {
+				if let StableStringPart::Expr(value) = part {
+					collect(value);
+				}
+			}
+		}
+		StableExprKind::List(items) | StableExprKind::Tuple(items) => {
+			for item in items.iter() {
+				match item {
+					StableListItem::Expr(value) | StableListItem::Spread(value) => collect(value),
+				}
+			}
+		}
+		StableExprKind::Map(entries) => {
+			for entry in entries.iter() {
+				match entry {
+					StableMapEntry::Entry(key, value) => {
+						collect(key);
+						collect(value);
+					}
+					StableMapEntry::Spread(value) => collect(value),
+				}
+			}
+		}
+		StableExprKind::Range(range) => match range {
+			StableRange::From(value) | StableRange::To(value) | StableRange::ToInclusive(value) => {
+				collect(value)
+			}
+			StableRange::Exclusive { min, max } | StableRange::Inclusive { min, max } => {
+				collect(min);
+				collect(max);
+			}
+		},
+		StableExprKind::Call { func, args } => {
+			collect(func);
+			for argument in args.iter() {
+				collect(&argument.value);
+			}
+		}
+		StableExprKind::MemberAccess { parent, .. }
+		| StableExprKind::Grouped(parent)
+		| StableExprKind::AsyncBlock(parent)
+		| StableExprKind::Await(parent)
+		| StableExprKind::PrefixOp { value: parent, .. }
+		| StableExprKind::PostfixOp { value: parent, .. }
+		| StableExprKind::TypeOp { lhs: parent, .. }
+		| StableExprKind::PatternOp { lhs: parent, .. }
+		| StableExprKind::Echo {
+			operand: parent, ..
+		} => collect(parent),
+		StableExprKind::IndexAccess { parent, index, .. }
+		| StableExprKind::BinaryOp {
+			lhs: parent,
+			rhs: index,
+			..
+		} => {
+			collect(parent);
+			let short_circuits = match &expr.kind {
+				StableExprKind::BinaryOp { op, .. } => matches!(
+					(*op, static_boolean(parent)),
+					(BinaryOperator::BoolAnd, Some(false)) | (BinaryOperator::BoolOr, Some(true))
+				),
+				_ => false,
+			};
+			if !short_circuits {
+				collect(index);
+			}
+		}
+		StableExprKind::Closure { body, .. } => collect(body),
+		StableExprKind::Break { value, .. } => {
+			if let Some(value) = value {
+				collect(value);
+			}
+		}
+		StableExprKind::Continue { replacements, .. } => {
+			for replacement in replacements.iter() {
+				collect(&replacement.value);
+			}
+		}
+		StableExprKind::For { iterable, body, .. } => {
+			collect(iterable);
+			collect(body);
+		}
+		StableExprKind::StateLoop { bindings, body, .. } => {
+			for binding in bindings.iter() {
+				collect(&binding.value);
+			}
+			collect(body);
+		}
+		StableExprKind::If {
+			condition,
+			then,
+			otherwise,
+		} => {
+			collect(condition);
+			match static_boolean(condition) {
+				Some(true) => collect(then),
+				Some(false) => {
+					if let Some(otherwise) = otherwise {
+						collect(otherwise);
+					}
+				}
+				None => {
+					collect(then);
+					if let Some(otherwise) = otherwise {
+						collect(otherwise);
+					}
+				}
+			}
+		}
+		StableExprKind::Match { value, arms } => {
+			collect(value);
+			for arm in arms.iter() {
+				if let Some(guard) = &arm.guard {
+					collect(guard);
+				}
+				collect(&arm.body);
+			}
+		}
+		StableExprKind::Block { body, .. } => {
+			let effective_len = body
+				.iter()
+				.position(|statement| {
+					stable_expr_definitely_transfers(
+						match statement {
+							StableStatement::Expr(value) | StableStatement::Let { value, .. } => value,
+						},
+						annotations,
+					)
+				})
+				.map_or(body.len(), |index| index + 1);
+			let mut nested = HashSet::new();
+			for index in (0..effective_len).rev() {
+				match &body[index] {
+					StableStatement::Expr(value) => {
+						if index + 1 == body.len()
+							|| stable_expr_definitely_transfers(value, annotations)
+							|| !stable_expr_is_pure(value, annotations)
+						{
+							collect_local_references(value, annotations, &mut nested);
+						}
+					}
+					StableStatement::Let {
+						pattern,
+						managed,
+						value,
+					} => {
+						let used = nested.remove(&pattern.id);
+						if used || *managed || !stable_expr_is_pure(value, annotations) {
+							collect_local_references(value, annotations, &mut nested);
+						}
+					}
+				}
+			}
+			references.extend(nested);
+		}
+	}
+}
+
+#[must_use]
+pub fn runtime_initializer_is_pure(definition: &RuntimeDefinition) -> bool {
+	match &definition.payload {
+		crate::RuntimePayload::HoopoeBody(body) if body.kind == crate::RuntimeBodyKind::Value => {
+			stable_expr_is_pure(&body.stable.root, &body.annotations)
+		}
+		crate::RuntimePayload::External(_) => true,
+		_ => false,
+	}
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RuntimeDefinitionLookupError {
 	Missing {
@@ -246,6 +588,7 @@ pub struct StableHirModule {
 	pub hir: HirModule,
 	pub own_definitions: Vec<DefinitionId>,
 	pub eliminated_definitions: Vec<DefinitionId>,
+	pub unused_definitions: Vec<DefinitionId>,
 	pub fragments: Vec<LoweredRuntimeDefinition>,
 	pub imports: Vec<DefinitionId>,
 	pub virtual_runtime: Vec<VirtualRuntimeFragment>,
@@ -382,7 +725,19 @@ pub struct LoweredRuntimeDefinition {
 	direct_demands: StableDemandSet,
 	routed_demands: StableDemandSet,
 	execution: RuntimeExecutionSummary,
+	unused_locals: Vec<UnusedLocal>,
 	placement: RuntimeAssemblyPlacement,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnusedLocal {
+	pub name: EcoString,
+	pub declaration: crate::PatternNodeId,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct StableLoweringOptions {
+	pub eliminate_dead_code: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -407,6 +762,7 @@ impl LoweredRuntimeDefinition {
 			direct_demands,
 			routed_demands: StableDemandSet::new(),
 			execution: RuntimeExecutionSummary::default(),
+			unused_locals: Vec::new(),
 			placement,
 		}
 	}
@@ -439,6 +795,9 @@ impl LoweredRuntimeDefinition {
 	}
 	pub fn execution_summary(&self) -> &RuntimeExecutionSummary {
 		&self.execution
+	}
+	pub fn unused_locals(&self) -> &[UnusedLocal] {
+		&self.unused_locals
 	}
 	pub fn placement(&self) -> &RuntimeAssemblyPlacement {
 		&self.placement
@@ -540,11 +899,20 @@ pub fn lower_runtime_definition(
 	context: &impl StableLoweringContext,
 	artifact: Arc<RuntimeDefinition>,
 ) -> Result<LoweredRuntimeDefinition, StableLoweringError> {
+	lower_runtime_definition_with_options(context, artifact, StableLoweringOptions::default())
+}
+
+pub fn lower_runtime_definition_with_options(
+	context: &impl StableLoweringContext,
+	artifact: Arc<RuntimeDefinition>,
+	options: StableLoweringOptions,
+) -> Result<LoweredRuntimeDefinition, StableLoweringError> {
 	let definition = artifact.definition.clone();
 	let mut demands = StableDemandSet::new();
 	let mut direct_demands = StableDemandSet::new();
 	let mut routed_demands = StableDemandSet::new();
 	let mut execution = RuntimeExecutionSummary::default();
+	let mut unused_locals = Vec::new();
 	let fragment = match &artifact.payload {
 		crate::RuntimePayload::External(abi) => lower_external(context, &artifact, abi)?,
 		crate::RuntimePayload::Struct(shell) => {
@@ -571,6 +939,8 @@ pub fn lower_runtime_definition(
 						&mut direct_demands,
 						&mut routed_demands,
 						&mut execution,
+						&mut unused_locals,
+						options,
 						None,
 						None,
 						None,
@@ -634,6 +1004,8 @@ pub fn lower_runtime_definition(
 				&mut direct_demands,
 				&mut routed_demands,
 				&mut execution,
+				&mut unused_locals,
+				options,
 				implementation.map(|implementation| &implementation.self_type),
 				implementation.map(|implementation| &implementation.member_slots),
 				implementation_member
@@ -735,6 +1107,8 @@ pub fn lower_runtime_definition(
 				&mut direct_demands,
 				&mut routed_demands,
 				&mut execution,
+				&mut unused_locals,
+				options,
 				Some(&implementation_shape.self_type),
 				Some(&implementation_shape.member_slots),
 				Some(member_shape.kind),
@@ -765,6 +1139,7 @@ pub fn lower_runtime_definition(
 	lowered.direct_demands = direct_demands;
 	lowered.routed_demands = routed_demands;
 	lowered.execution = execution;
+	lowered.unused_locals = unused_locals;
 	Ok(lowered)
 }
 
@@ -1357,7 +1732,8 @@ fn external_callable_shape(
 				|| !matches!(
 					shape.kind,
 					crate::MemberKind::Function | crate::MemberKind::StaticFunction
-				) || shape.external.as_ref() != Some(abi)
+				)
+				|| shape.external.as_ref() != Some(abi)
 			{
 				return Err(invalid(
 					definition,
@@ -2157,6 +2533,8 @@ fn lower_body(
 	direct_demands: &mut StableDemandSet,
 	routed_demands: &mut StableDemandSet,
 	execution: &mut RuntimeExecutionSummary,
+	unused_locals: &mut Vec<UnusedLocal>,
+	options: StableLoweringOptions,
 	self_type: Option<&InterfaceType>,
 	implementation_slots: Option<&crate::ImplementationMemberCatalog>,
 	member_kind: Option<crate::MemberKind>,
@@ -2237,7 +2615,8 @@ fn lower_body(
 		&& matches!(
 			member_kind,
 			Some(crate::MemberKind::Function | crate::MemberKind::Value)
-		)) || (exact_parameterized_implementation && instance_member);
+		))
+		|| (exact_parameterized_implementation && instance_member);
 	let mut type_parameters = implementation_type_parameters.clone();
 	type_parameters.extend(
 		body
@@ -2275,6 +2654,8 @@ fn lower_body(
 		direct_demands: RefCell::new(direct_demands),
 		routed_demands: RefCell::new(routed_demands),
 		execution: RefCell::new(execution),
+		unused_locals: RefCell::new(unused_locals),
+		eliminate_dead_code: options.eliminate_dead_code,
 		deferred_execution: RefCell::new(Vec::new()),
 		deferred_depth: Cell::new(0),
 		capture_root_invocation: !is_function
@@ -2514,6 +2895,8 @@ struct StableBodyLowerer<'a, C> {
 	direct_demands: RefCell<&'a mut StableDemandSet>,
 	routed_demands: RefCell<&'a mut StableDemandSet>,
 	execution: RefCell<&'a mut RuntimeExecutionSummary>,
+	unused_locals: RefCell<&'a mut Vec<UnusedLocal>>,
+	eliminate_dead_code: bool,
 	deferred_execution: RefCell<Vec<RuntimeExecutionSummary>>,
 	deferred_depth: Cell<u32>,
 	capture_root_invocation: bool,
@@ -2993,47 +3376,7 @@ impl<C: StableLoweringContext> StableBodyLowerer<'_, C> {
 	/// closure annotation turns the underlying expression into a callable value,
 	/// so its body's `never` type must not erase an enclosing operation.
 	fn definitely_transfers(&self, expr: &StableExpr) -> bool {
-		let node = self.id(expr);
-		if self.annotations.anonymous_closure_arity(node).is_some() {
-			return false;
-		}
-		match &expr.kind {
-			StableExprKind::Break { .. } | StableExprKind::Continue { .. } => true,
-			StableExprKind::Grouped(value) => self.definitely_transfers(value),
-			StableExprKind::BinaryOp { lhs, op, rhs } => {
-				self.definitely_transfers(lhs)
-					|| match (*op, static_boolean(lhs)) {
-						(BinaryOperator::BoolAnd, Some(true)) | (BinaryOperator::BoolOr, Some(false)) => {
-							self.definitely_transfers(rhs)
-						}
-						_ => false,
-					}
-			}
-			StableExprKind::If {
-				condition,
-				then,
-				otherwise,
-			} => {
-				self.definitely_transfers(condition)
-					|| match static_boolean(condition) {
-						Some(true) => self.definitely_transfers(then),
-						Some(false) => otherwise
-							.as_deref()
-							.is_some_and(|otherwise| self.definitely_transfers(otherwise)),
-						None => otherwise.as_deref().is_some_and(|otherwise| {
-							self.definitely_transfers(then) && self.definitely_transfers(otherwise)
-						}),
-					}
-			}
-			StableExprKind::Match { value, arms } => {
-				self.definitely_transfers(value)
-					|| (!arms.is_empty() && arms.iter().all(|arm| self.definitely_transfers(&arm.body)))
-			}
-			_ => self
-				.annotations
-				.type_of(node)
-				.is_some_and(|ty| matches!(peel_mut(ty), InterfaceType::Never)),
-		}
+		stable_expr_definitely_transfers(expr, self.annotations)
 	}
 	fn builtin_result(&self, expr: &StableExpr) -> Result<BuiltinResult, StableLoweringError> {
 		match peel_mut(&self.ty(expr)?) {
@@ -7119,9 +7462,57 @@ impl<C: StableLoweringContext> StableBodyLowerer<'_, C> {
 		if new_scope {
 			return self.with_scope(|| self.lower_block(body, false));
 		}
+		let mut keep = vec![true; body.len()];
+		let mut keep_binding = vec![true; body.len()];
+		if self.eliminate_dead_code {
+			let effective_len = body
+				.iter()
+				.position(|statement| {
+					self.definitely_transfers(match statement {
+						StableStatement::Let { value, .. } | StableStatement::Expr(value) => value,
+					})
+				})
+				.map_or(body.len(), |index| index + 1);
+			keep[effective_len..].fill(false);
+			let mut live = HashSet::new();
+			for index in (0..effective_len).rev() {
+				match &body[index] {
+					StableStatement::Expr(value) => {
+						let is_tail = index + 1 == body.len();
+						keep[index] = is_tail
+							|| self.definitely_transfers(value)
+							|| !stable_expr_is_pure(value, self.annotations);
+						if keep[index] {
+							collect_local_references(value, self.annotations, &mut live);
+						}
+					}
+					StableStatement::Let {
+						pattern,
+						managed,
+						value,
+					} => {
+						let used = live.remove(&pattern.id);
+						keep_binding[index] = used || *managed;
+						keep[index] = keep_binding[index] || !stable_expr_is_pure(value, self.annotations);
+						if !used && let StablePatternKind::Binding { name, .. } = &pattern.kind {
+							self.unused_locals.borrow_mut().push(UnusedLocal {
+								name: name.clone(),
+								declaration: pattern.id,
+							});
+						}
+						if keep[index] {
+							collect_local_references(value, self.annotations, &mut live);
+						}
+					}
+				}
+			}
+		}
 		let mut stmts = vec![];
 		let mut tail = None;
 		for (index, statement) in body.iter().enumerate() {
+			if !keep[index] {
+				continue;
+			}
 			let last = index + 1 == body.len();
 			let transfers = self.definitely_transfers(match statement {
 				StableStatement::Let { value, .. } | StableStatement::Expr(value) => value,
@@ -7134,23 +7525,27 @@ impl<C: StableLoweringContext> StableBodyLowerer<'_, C> {
 				} => {
 					let source = value.id;
 					let value = self.lower(value)?;
-					let name = self.declare(pattern_name(pattern)?);
-					let cleanup = if *managed {
-						let dispatch = self.annotations.managed_cleanup(source).ok_or_else(|| {
-							invalid(
-								&self.artifact.definition,
-								"managed binding has no stable cleanup fact",
-							)
-						})?;
-						Some(self.lower_dispatch_value(source, dispatch, HirExpr::Local(name.clone()))?)
+					if !keep_binding[index] {
+						stmts.push(HirStmt::Expr(value));
 					} else {
-						None
-					};
-					stmts.push(HirStmt::Let {
-						name,
-						value,
-						cleanup,
-					});
+						let name = self.declare(pattern_name(pattern)?);
+						let cleanup = if *managed {
+							let dispatch = self.annotations.managed_cleanup(source).ok_or_else(|| {
+								invalid(
+									&self.artifact.definition,
+									"managed binding has no stable cleanup fact",
+								)
+							})?;
+							Some(self.lower_dispatch_value(source, dispatch, HirExpr::Local(name.clone()))?)
+						} else {
+							None
+						};
+						stmts.push(HirStmt::Let {
+							name,
+							value,
+							cleanup,
+						});
+					}
 				}
 				StableStatement::Expr(expr)
 					if matches!(expr.kind, StableExprKind::Break { .. })

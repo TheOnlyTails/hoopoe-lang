@@ -631,6 +631,24 @@ pub enum RuntimePlacement {
 	},
 }
 
+/// Source locations are available to diagnostics but do not form part of a
+/// runtime definition's stable identity. Formatting-only edits must still let
+/// per-definition runtime queries backdate unchanged artifacts.
+#[derive(Clone, Debug, salsa::SalsaValue)]
+pub struct LocalDeclarationSites(Arc<[(PatternNodeId, hoopoe_ast::Span)]>);
+
+impl PartialEq for LocalDeclarationSites {
+	fn eq(&self, other: &Self) -> bool {
+		self
+			.0
+			.iter()
+			.map(|(id, _)| id)
+			.eq(other.0.iter().map(|(id, _)| id))
+	}
+}
+
+impl Eq for LocalDeclarationSites {}
+
 /// Stable, body-local lowering channels. New lowering side tables must be added
 /// here rather than recovered later through names or spans.
 #[derive(Clone, Debug, PartialEq, Eq, salsa::SalsaValue)]
@@ -639,6 +657,15 @@ pub struct RuntimeAnnotations {
 	pub result: Option<crate::ResultRuntimeRole>,
 	pub types: Arc<[(BodyNodeId, InterfaceType)]>,
 	pub definition_targets: Arc<[(BodyNodeId, DefinitionId)]>,
+	/// Identifier use → exact local declaration pattern.
+	pub local_definition_targets: Arc<[(BodyNodeId, PatternNodeId)]>,
+	/// Local declaration pattern → source name span. Spans are diagnostic data,
+	/// not part of this artifact's stable runtime identity.
+	pub local_declarations: LocalDeclarationSites,
+	/// Calls whose checked callable effect row is empty.
+	pub pure_calls: Arc<[BodyNodeId]>,
+	/// Non-builtin dispatches whose checked member effect row is empty.
+	pub pure_dispatches: Arc<[BodyNodeId]>,
 	pub direct_namespace_members: Arc<[BodyNodeId]>,
 	pub dispatches: Arc<[(BodyNodeId, StableDispatch)]>,
 	/// Managed initializer → exact `Close.close` dispatch.
@@ -685,6 +712,25 @@ impl RuntimeAnnotations {
 			.definition_targets
 			.iter()
 			.find_map(|(id, value)| (*id == node).then_some(value))
+	}
+
+	pub fn local_definition_target(&self, node: BodyNodeId) -> Option<PatternNodeId> {
+		self
+			.local_definition_targets
+			.iter()
+			.find_map(|(id, target)| (*id == node).then_some(*target))
+	}
+
+	pub fn local_declarations(&self) -> impl Iterator<Item = (PatternNodeId, hoopoe_ast::Span)> + '_ {
+		self.local_declarations.0.iter().copied()
+	}
+
+	pub fn is_pure_call(&self, node: BodyNodeId) -> bool {
+		self.pure_calls.contains(&node)
+	}
+
+	pub fn is_pure_dispatch(&self, node: BodyNodeId) -> bool {
+		self.pure_dispatches.contains(&node)
 	}
 
 	pub fn is_direct_namespace_member(&self, node: BodyNodeId) -> bool {
@@ -1528,10 +1574,13 @@ impl<'a> StableBodyBuilder<'a> {
 					})
 					.collect::<Result<_, _>>()?,
 			),
-			Pattern::Binding { name, inner } => StablePatternKind::Binding {
-				name: name.0.clone(),
-				inner: Box::new(self.pattern(inner)?),
-			},
+			Pattern::Binding { name, inner } => {
+				self.pattern_sites.borrow_mut().insert(name.1, id);
+				StablePatternKind::Binding {
+					name: name.0.clone(),
+					inner: Box::new(self.pattern(inner)?),
+				}
+			}
 			Pattern::List(v) => StablePatternKind::List(
 				v.iter()
 					.map(|e| self.list_pattern(&e.0))
@@ -1925,7 +1974,8 @@ fn runtime_annotations(
 									..
 								}
 							)
-						}) || checked.annotations.variant_of(expression.id).is_some()
+						})
+						|| checked.annotations.variant_of(expression.id).is_some()
 				}
 				_ => checked.annotations.variant_of(expression.id).is_some(),
 			};
@@ -1967,6 +2017,80 @@ fn runtime_annotations(
 		.annotations
 		.definition_targets()
 		.filter_map(|(id, target)| local.get(&id).map(|id| (*id, target.clone())))
+		.collect::<Vec<_>>();
+	let mut local_definition_targets = checked
+		.annotations
+		.infos()
+		.filter_map(|(source, _)| {
+			let node = *local.get(&source)?;
+			let declaration = checked.annotations.local_definition_target_of(source)?;
+			pattern_sites
+				.get(&declaration)
+				.map(|target| (node, *target))
+		})
+		.collect::<Vec<_>>();
+	let mut local_declarations = checked
+		.annotations
+		.local_declarations()
+		.filter(|(span, identity)| span == identity)
+		.filter_map(|(span, _)| pattern_sites.get(&span).map(|id| (*id, span)))
+		.collect::<Vec<_>>();
+	let expression_infos = checked
+		.annotations
+		.infos()
+		.collect::<std::collections::HashMap<_, _>>();
+	let mut pure_calls = nodes
+		.iter()
+		.filter_map(|expression| {
+			let func = match &expression.kind {
+				ExprKind::Call { func, .. } => func.as_ref(),
+				ExprKind::BinaryOp {
+					lhs: _,
+					op: BinaryOperator::Pipe,
+					rhs,
+				} => rhs.as_ref(),
+				_ => return None,
+			};
+			let info = expression_infos.get(&func.id)?;
+			matches!(
+				checked.interner.kind(info.ty),
+				crate::TyKind::Fn { effects, .. } if effects.atoms().is_empty()
+			)
+			.then(|| local.get(&expression.id).copied())
+			.flatten()
+		})
+		.collect::<Vec<_>>();
+	let mut pure_dispatches = checked
+		.annotations
+		.infos()
+		.filter_map(|(node, info)| {
+			let resolution = info.resolution.as_ref()?;
+			if resolution.dispatch == crate::DispatchKind::BuiltinEager
+				|| resolution.dispatch == crate::DispatchKind::BuiltinShortCircuit
+				|| resolution.dispatch == crate::DispatchKind::BuiltinStructuralEquality
+			{
+				return None;
+			}
+			let target =
+				resolution
+					.target
+					.as_ref()
+					.or_else(|| match resolution.resolved_target.as_ref()? {
+						crate::annotate::ResolvedMethodTarget::Inherent { member, .. } => Some(member),
+						crate::annotate::ResolvedMethodTarget::InterfaceImplementation { slot, .. } => {
+							Some(&slot.member_id)
+						}
+						crate::annotate::ResolvedMethodTarget::GenericBound {
+							interface_member, ..
+						} => Some(interface_member),
+					})?;
+			checked
+				.semantic
+				.effect_row(target)
+				.is_some_and(|effects| effects.atoms().is_empty())
+				.then(|| local.get(&node).copied())
+				.flatten()
+		})
 		.collect::<Vec<_>>();
 	let mut managed_cleanups = checked
 		.annotations
@@ -2238,6 +2362,10 @@ fn runtime_annotations(
 		.collect::<Vec<_>>();
 	types.sort_by_key(|item| item.0);
 	definition_targets.sort_by_key(|item| item.0);
+	local_definition_targets.sort_unstable();
+	local_declarations.sort_by_key(|item| item.0);
+	pure_calls.sort_unstable();
+	pure_dispatches.sort_unstable();
 	dispatches.sort_by_key(|item| item.0);
 	managed_cleanups.sort_by_key(|item| item.0);
 	variants.sort_by_key(|item| item.0);
@@ -2269,6 +2397,10 @@ fn runtime_annotations(
 		result: checked.runtime_roles.result.clone(),
 		types: types.into(),
 		definition_targets: definition_targets.into(),
+		local_definition_targets: local_definition_targets.into(),
+		local_declarations: LocalDeclarationSites(local_declarations.into()),
+		pure_calls: pure_calls.into(),
+		pure_dispatches: pure_dispatches.into(),
 		direct_namespace_members: direct_namespace_members.into(),
 		dispatches: dispatches.into(),
 		managed_cleanups: managed_cleanups.into(),

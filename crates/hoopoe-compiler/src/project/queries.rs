@@ -97,20 +97,90 @@ fn dead_code_diagnostics(
 	let eliminated = lowered
 		.eliminated_definitions
 		.iter()
+		.chain(&lowered.unused_definitions)
 		.collect::<std::collections::HashSet<_>>();
-	hoopoe_sema::top_level_declarations(module.identity(db), &module.project_parsed(db, key).tree)
+	let mut diagnostics =
+		hoopoe_sema::top_level_declarations(module.identity(db), &module.project_parsed(db, key).tree)
+			.into_iter()
+			.filter(|declaration| eliminated.contains(&declaration.definition))
+			.map(|declaration| {
+				let message = format!("`{}` is never used", declaration.name);
+				let mut diag = Diagnostic::warning("unused".into(), message, declaration.name_span)
+					.with_help("remove this declaration or use it from reachable code");
+				if level == LintLevel::Deny {
+					diag.severity = hoopoe_diagnostics::Severity::Error;
+				}
+				ProjectDiagnostic {
+					module: module.display_key(db),
+					diag,
+				}
+			})
+			.collect::<Vec<_>>();
+	let identity = module.identity(db);
+	let local_declaration_spans = current_local_declaration_spans(db, key, module);
+	let mut local_spans = std::collections::HashSet::new();
+	for (definition, local) in lowered
+		.fragments
+		.iter()
+		.filter(|fragment| fragment.definition().module == identity)
+		.flat_map(|fragment| {
+			fragment
+				.unused_locals()
+				.iter()
+				.map(move |local| (fragment.definition(), local))
+		}) {
+		let Some(span) = local_declaration_spans
+			.get(&(definition.clone(), local.declaration))
+			.copied()
+		else {
+			continue;
+		};
+		if !local_spans.insert(span) {
+			continue;
+		}
+		let message = format!("`{}` is never used", local.name);
+		let mut diag = Diagnostic::warning("unused".into(), message, span)
+			.with_help("remove this variable or use it from reachable code");
+		if level == LintLevel::Deny {
+			diag.severity = hoopoe_diagnostics::Severity::Error;
+		}
+		diagnostics.push(ProjectDiagnostic {
+			module: module.display_key(db),
+			diag,
+		});
+	}
+	diagnostics.sort_by_key(|diagnostic| diagnostic.diag.span.start);
+	diagnostics
+}
+
+fn current_local_declaration_spans(
+	db: &dyn Db,
+	key: ProjectKey<'_>,
+	module: SemanticModuleInput,
+) -> std::collections::HashMap<(hoopoe_sema::DefinitionId, hoopoe_sema::PatternNodeId), Span> {
+	let environment = interface_module_environment(db, key, module);
+	let hoopoe_sema::ModuleEnvironment::Complete(interface) = environment.as_ref() else {
+		return std::collections::HashMap::new();
+	};
+	let analysis = interface_module_analysis(db, key, module);
+	let Ok(definitions) = hoopoe_sema::runtime_definitions(
+		&analysis.semantic.module,
+		&analysis.semantic.checked,
+		interface,
+	) else {
+		return std::collections::HashMap::new();
+	};
+	definitions
 		.into_iter()
-		.filter(|declaration| eliminated.contains(&declaration.definition))
-		.map(|declaration| {
-			let message = format!("`{}` is never used", declaration.name);
-			let mut diag = Diagnostic::warning("unused".into(), message, declaration.name_span)
-				.with_help("remove this declaration or use it from reachable code");
-			if level == LintLevel::Deny {
-				diag.severity = hoopoe_diagnostics::Severity::Error;
-			}
-			ProjectDiagnostic {
-				module: module.display_key(db),
-				diag,
+		.flat_map(|definition| {
+			let id = definition.definition.clone();
+			match definition.payload {
+				hoopoe_sema::RuntimePayload::HoopoeBody(body) => body
+					.annotations
+					.local_declarations()
+					.map(|(pattern, span)| ((id.clone(), pattern), span))
+					.collect::<Vec<_>>(),
+				_ => Vec::new(),
 			}
 		})
 		.collect()
@@ -2713,7 +2783,15 @@ pub(crate) fn lower_runtime_definition<'db>(
 		},
 	})?;
 	let context = CompilerStableContext { db, key };
-	hoopoe_sema::lower_runtime_definition(&context, artifact).map(Arc::new)
+	hoopoe_sema::lower_runtime_definition_with_options(
+		&context,
+		artifact,
+		hoopoe_sema::StableLoweringOptions {
+			eliminate_dead_code: !key.preserve_names(db)
+				&& key.policy_input(db).profile(db) == super::session::BuildProfile::Release,
+		},
+	)
+	.map(Arc::new)
 }
 
 fn collect_unresolved_runtime_calls(
@@ -2780,6 +2858,29 @@ pub(crate) fn lower_interface_module<'db>(
 	let entry_module = eliminate_dead_code
 		&& key.mode(db) == hoopoe_sema::EntryMode::Entry
 		&& module.display_key(db) == key.entry(db).as_str();
+	let initializer_has_effects = |definition: &hoopoe_sema::DefinitionId| {
+		runtime_definition(db, key, definition.clone())
+			.map(|artifact| !hoopoe_sema::runtime_initializer_is_pure(&artifact))
+			.unwrap_or(true)
+	};
+	let effect_roots = own
+		.iter()
+		.filter(|definition| {
+			matches!(
+				&definition.key,
+				hoopoe_sema::DeclarationKey::TopLevel {
+					category: hoopoe_sema::DeclarationCategory::Let,
+					..
+				}
+			) && initializer_has_effects(definition)
+				&& (entry_module
+					|| declarations.iter().any(|declaration| {
+						declaration.definition == **definition
+							&& declaration.visibility == hoopoe_sema::NamespaceVisibility::Private
+					}))
+		})
+		.cloned()
+		.collect::<std::collections::HashSet<_>>();
 	// Interface default bodies are canonical templates, not independently
 	// emitted methods. Only a demanded materialized implementation may lower
 	// and attach one to a concrete runtime owner.
@@ -2789,15 +2890,15 @@ pub(crate) fn lower_interface_module<'db>(
 			let runtime_root = !eliminate_dead_code
 				|| match &definition.key {
 					hoopoe_sema::DeclarationKey::TopLevel { category, name, .. } => {
-						*category == hoopoe_sema::DeclarationCategory::Let
-							|| if entry_module {
-								*category == hoopoe_sema::DeclarationCategory::Function && name == "main"
-							} else {
-								declarations.iter().any(|declaration| {
-									declaration.definition == **definition
-										&& declaration.visibility != hoopoe_sema::NamespaceVisibility::Private
-								})
-							}
+						(if entry_module {
+							*category == hoopoe_sema::DeclarationCategory::Function && name == "main"
+						} else {
+							declarations.iter().any(|declaration| {
+								declaration.definition == **definition
+									&& declaration.visibility != hoopoe_sema::NamespaceVisibility::Private
+							})
+						}) || *category == hoopoe_sema::DeclarationCategory::Let
+							&& initializer_has_effects(definition)
 					}
 					_ => !entry_module,
 				};
@@ -2957,11 +3058,20 @@ pub(crate) fn lower_interface_module<'db>(
 		.filter(|definition| !seen.contains(*definition))
 		.cloned()
 		.collect();
+	let demanded_definitions = lowered
+		.iter()
+		.flat_map(|fragment| fragment.demands().iter().cloned())
+		.collect::<std::collections::HashSet<_>>();
+	let unused_definitions = effect_roots
+		.into_iter()
+		.filter(|definition| !demanded_definitions.contains(definition))
+		.collect();
 	Ok(Arc::new(hoopoe_sema::StableHirModule {
 		module: module.identity(db),
 		hir,
 		own_definitions: own.to_vec(),
 		eliminated_definitions,
+		unused_definitions,
 		fragments: lowered,
 		imports,
 		virtual_runtime,
