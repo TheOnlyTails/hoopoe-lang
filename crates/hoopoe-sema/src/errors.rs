@@ -834,7 +834,7 @@ impl IntoDiagnostic for TypeError {
 		match self {
 			TypeError::UnreachableArm => Some("a previous arm already covers this case".into()),
 			TypeError::UnreachableCode => {
-				Some("remove this statement or the control transfer before it".into())
+				Some("remove this code or change what makes it unreachable".into())
 			}
 			TypeError::DuplicateMember { name, .. } => {
 				Some(format!("rename one of the `{name}` members to remove the collision").into())
