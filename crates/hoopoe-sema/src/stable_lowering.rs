@@ -23,6 +23,7 @@ use hoopoe_hir::hir::{
 };
 use num_bigint::BigInt;
 
+use crate::static_value::StaticValue;
 use crate::{
 	DefinitionId, EnumShell, ExportedDefinition, ExportedImpl, ExternalAbi, InterfaceType,
 	MemberShape, ModuleIdentity, RuntimeDefinition, StableExpr, StableExprKind, StableListItem,
@@ -30,6 +31,26 @@ use crate::{
 	StablePatternKind, StablePatternRange, StableRange, StableStatement, StableStringPart,
 	StableStringPatternPart, StableStructPatternField, StructShell,
 };
+
+fn static_value(expr: &StableExpr) -> Option<StaticValue> {
+	match &expr.kind {
+		StableExprKind::Int(value) => Some(StaticValue::Int((*value).into())),
+		StableExprKind::UInt(value) => Some(StaticValue::UInt((*value).into())),
+		StableExprKind::Float(value) => Some(StaticValue::Float(value.into_inner())),
+		StableExprKind::Char(value) => Some(StaticValue::Char(*value)),
+		StableExprKind::Boolean(value) => Some(StaticValue::Boolean(*value)),
+		StableExprKind::Grouped(value) => static_value(value),
+		StableExprKind::PrefixOp { op, value } => StaticValue::prefix(*op, static_value(value)?),
+		StableExprKind::BinaryOp { lhs, op, rhs } => {
+			StaticValue::binary(*op, static_value(lhs)?, static_value(rhs)?)
+		}
+		_ => None,
+	}
+}
+
+fn static_boolean(expr: &StableExpr) -> Option<bool> {
+	static_value(expr)?.boolean()
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RuntimeDefinitionLookupError {
@@ -2979,15 +3000,30 @@ impl<C: StableLoweringContext> StableBodyLowerer<'_, C> {
 		match &expr.kind {
 			StableExprKind::Break { .. } | StableExprKind::Continue { .. } => true,
 			StableExprKind::Grouped(value) => self.definitely_transfers(value),
+			StableExprKind::BinaryOp { lhs, op, rhs } => {
+				self.definitely_transfers(lhs)
+					|| match (*op, static_boolean(lhs)) {
+						(BinaryOperator::BoolAnd, Some(true)) | (BinaryOperator::BoolOr, Some(false)) => {
+							self.definitely_transfers(rhs)
+						}
+						_ => false,
+					}
+			}
 			StableExprKind::If {
 				condition,
 				then,
 				otherwise,
 			} => {
 				self.definitely_transfers(condition)
-					|| otherwise.as_deref().is_some_and(|otherwise| {
-						self.definitely_transfers(then) && self.definitely_transfers(otherwise)
-					})
+					|| match static_boolean(condition) {
+						Some(true) => self.definitely_transfers(then),
+						Some(false) => otherwise
+							.as_deref()
+							.is_some_and(|otherwise| self.definitely_transfers(otherwise)),
+						None => otherwise.as_deref().is_some_and(|otherwise| {
+							self.definitely_transfers(then) && self.definitely_transfers(otherwise)
+						}),
+					}
 			}
 			StableExprKind::Match { value, arms } => {
 				self.definitely_transfers(value)
@@ -4033,6 +4069,12 @@ impl<C: StableLoweringContext> StableBodyLowerer<'_, C> {
 				}
 			}
 			StableExprKind::BinaryOp { lhs, op, rhs } => {
+				if matches!(
+					(*op, static_boolean(lhs)),
+					(BinaryOperator::BoolAnd, Some(false)) | (BinaryOperator::BoolOr, Some(true))
+				) {
+					return self.lower(lhs);
+				}
 				if self.definitely_transfers(lhs) {
 					return self.lower(lhs);
 				}
@@ -4167,13 +4209,25 @@ impl<C: StableLoweringContext> StableBodyLowerer<'_, C> {
 				condition,
 				then,
 				otherwise,
-			} => HirExpr::If {
-				cond: Box::new(self.lower(condition)?),
-				then: Box::new(self.lower(then)?),
-				otherwise: otherwise
-					.as_ref()
-					.map(|value| self.lower(value).map(Box::new))
-					.transpose()?,
+			} => match static_boolean(condition) {
+				Some(true) => self.lower(then)?,
+				Some(false) => otherwise.as_deref().map_or_else(
+					|| {
+						Ok(HirExpr::Block {
+							stmts: vec![],
+							tail: None,
+						})
+					},
+					|otherwise| self.lower(otherwise),
+				)?,
+				None => HirExpr::If {
+					cond: Box::new(self.lower(condition)?),
+					then: Box::new(self.lower(then)?),
+					otherwise: otherwise
+						.as_ref()
+						.map(|value| self.lower(value).map(Box::new))
+						.transpose()?,
+				},
 			},
 			StableExprKind::Closure { params, body, .. } => self.with_scope(|| {
 				let params = params

@@ -82,6 +82,67 @@ fn statements_after_a_guaranteed_transfer_are_unreachable() {
 }
 
 #[test]
+fn statically_known_conditions_mark_dead_branches_and_following_statements() {
+	for source in [
+		"func value(): int = if (false) 7 else 9",
+		"func value(): int = if (1 == 0) 7 else 9",
+		"func value(): int = if (1 + 2 * 3 < 8) 7 else 9",
+		"func value(): int = if (1u < 0u) 7 else 9",
+		"func value(): int = if (1.5 > 2.0) 7 else 9",
+		"func value(): int = if ('a' == 'b') 7 else 9",
+		"func value(): int = if ((1 | 2) == 3) 7 else 9",
+		"func value(): int = if ((8 >> 2) == 2) 7 else 9",
+		"func value(): int = if ((1 / 2) == 0.5) 7 else 9",
+		"func value(): int = if (!(3 >= 3)) 7 else 9",
+	] {
+		let found = messages(source);
+		assert_eq!(
+			found
+				.iter()
+				.filter(|message| message.as_str() == "unreachable code")
+				.count(),
+			1,
+			"{source}: {found:?}"
+		);
+	}
+	for source in [
+		"func value(): boolean = false && (1 == 1)",
+		"func value(): boolean = true || (1 == 1)",
+	] {
+		let found = messages(source);
+		assert_eq!(
+			found
+				.iter()
+				.filter(|message| message.as_str() == "unreachable code")
+				.count(),
+			1,
+			"{source}: {found:?}"
+		);
+	}
+
+	let found = messages("func value(): int = { if (1 + 1 == 2) break 1 2 }");
+	assert_eq!(
+		found
+			.iter()
+			.filter(|message| message.as_str() == "unreachable code")
+			.count(),
+		1,
+		"{found:?}"
+	);
+	assert!(
+		messages("func value(flag: boolean): int = if (flag) 7 else 9").is_empty(),
+		"dynamic conditions must keep both branches reachable"
+	);
+	let overflow = messages("func value(): int = if (9223372036854775807 + 1 == 0) 7 else 9");
+	assert!(
+		overflow
+			.iter()
+			.all(|message| message.as_str() != "unreachable code"),
+		"overflowing arithmetic must not be folded: {overflow:?}"
+	);
+}
+
+#[test]
 fn return_is_an_ordinary_identifier() {
 	let found = messages("func value(): int = { let return = 1 return }");
 	assert!(found.is_empty(), "{found:?}");
@@ -319,7 +380,7 @@ fn loop_result_contracts_type_check() {
 	for source in [
 		"func no_break(): void = for (_ in #[]) {}",
 		"func bare(): Option<#()> = for (_ in #[]) { break }",
-		"func valued(): Option<int> = for (_ in #[]) { if (false) { break 1 } break 2 }",
+		"func valued(flag: boolean): Option<int> = for (_ in #[]) { if (flag) { break 1 } break 2 }",
 		"func labeled_loop(): Option<int> = for@outer (_ in #[#()]) { break 1 }",
 		"func labeled_for(): Option<int> = for@outer (_ in #[1]) { break 1 }",
 		"func nested_unlabeled(): void = for@outer (_ in #[]) { for (_ in #[#()]) { break 1 } }",
@@ -329,7 +390,7 @@ fn loop_result_contracts_type_check() {
 		"func nested_break(): Option<int> = for (_ in #[#()]) { break (break 1) }",
 		"func all_arms(value: boolean): Option<int> = for (_ in #[#()]) { 1 + match (value) { true -> break 1, false -> break 2 } }",
 		"func guarded_arm(value: int): Option<int> = for (_ in #[#()]) { 1 + match (value) { 0 if true -> break 1, _ -> break 2 } }",
-		"func short_circuit(): Option<int> = for (_ in #[#()]) { false && break 1\ntrue || break 2\ntrue && break 3 }",
+		"func short_circuit(a: boolean, b: boolean): Option<int> = for (_ in #[#()]) { a && break 1\nb || break 2\ntrue && break 3 }",
 		"func prefix(): Option<int> = for (_ in #[#()]) { -(break 1) }",
 		"func callee(): Option<int> = for (_ in #[#()]) { (break 1)() }",
 		"func member(): Option<int> = for (_ in #[#()]) { (break 1).field }",

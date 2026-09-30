@@ -31,6 +31,7 @@ use crate::errors::TypeError;
 use crate::ids::{DefId, ParamIdx};
 use crate::lower::build_param_scope;
 use crate::solve::{MethodResolution, MethodSource};
+use crate::static_value::StaticValue;
 use crate::ty::{GenericArgs, Ty, TyKind};
 
 enum OptionalContainer {
@@ -42,6 +43,26 @@ enum IntegerConstant {
 	Value(BigInt),
 	Invalid(&'static str),
 	NotConstant,
+}
+
+fn static_value(expr: &Expr) -> Option<StaticValue> {
+	match &expr.kind {
+		ExprKind::Int(value) => Some(StaticValue::Int(value.0.into())),
+		ExprKind::UInt(value) => Some(StaticValue::UInt(value.0.into())),
+		ExprKind::Float(value) => Some(StaticValue::Float(value.0.into_inner())),
+		ExprKind::Char(value) => Some(StaticValue::Char(value.0)),
+		ExprKind::Boolean(value) => Some(StaticValue::Boolean(value.0)),
+		ExprKind::Grouped(value) => static_value(value),
+		ExprKind::PrefixOp { op, value } => StaticValue::prefix(*op, static_value(value)?),
+		ExprKind::BinaryOp { lhs, op, rhs } => {
+			StaticValue::binary(*op, static_value(lhs)?, static_value(rhs)?)
+		}
+		_ => None,
+	}
+}
+
+fn static_boolean(expr: &Expr) -> Option<bool> {
+	static_value(expr)?.boolean()
 }
 
 /// Whether a resolved method is owned by canonical compiler or importable-stdlib
@@ -535,6 +556,7 @@ impl<'m> Checker<'m> {
 			} => {
 				let boolean = self.interner.boolean();
 				self.check(condition, boolean);
+				self.warn_static_if(condition, then, otherwise.as_deref());
 				self.check(then, expected);
 				match otherwise {
 					Some(else_) => self.check(else_, expected),
@@ -1503,6 +1525,20 @@ impl<'m> Checker<'m> {
 			} => {
 				let boolean = self.interner.boolean();
 				self.check(condition, boolean);
+				self.warn_static_if(condition, then, otherwise.as_deref());
+				if let Some(value) = static_boolean(condition) {
+					let then_ty = self.infer(then);
+					return match (value, otherwise) {
+						(true, _) => {
+							if let Some(otherwise) = otherwise {
+								self.infer(otherwise);
+							}
+							then_ty
+						}
+						(false, Some(otherwise)) => self.infer(otherwise),
+						(false, None) => self.interner.void(),
+					};
+				}
 				match otherwise {
 					Some(else_) => {
 						let then_ty = self.infer(then);
@@ -4007,6 +4043,12 @@ impl<'m> Checker<'m> {
 				}
 			};
 		}
+		if matches!(
+			(op, static_boolean(lhs)),
+			(BoolAnd, Some(false)) | (BoolOr, Some(true))
+		) {
+			self.emit(rhs.span, TypeError::UnreachableCode);
+		}
 
 		let l = self.infer(lhs);
 		let r = self.infer(rhs);
@@ -4814,6 +4856,18 @@ impl<'m> Checker<'m> {
 	}
 
 	// ── Blocks ───────────────────────────────────────────────────────────────
+	fn warn_static_if(&mut self, condition: &Expr, then: &Expr, otherwise: Option<&Expr>) {
+		match static_boolean(condition) {
+			Some(false) => self.emit(then.span, TypeError::UnreachableCode),
+			Some(true) => {
+				if let Some(otherwise) = otherwise {
+					self.emit(otherwise.span, TypeError::UnreachableCode);
+				}
+			}
+			None => {}
+		}
+	}
+
 	fn definitely_transfers(&self, expr: &Expr) -> bool {
 		if self.annotations.anon_boundary_arity(expr.id).is_some() {
 			return false;
@@ -4821,15 +4875,30 @@ impl<'m> Checker<'m> {
 		match &expr.kind {
 			ExprKind::Break { .. } | ExprKind::Continue { .. } => true,
 			ExprKind::Grouped(value) => self.definitely_transfers(value),
+			ExprKind::BinaryOp { lhs, op, rhs } => {
+				self.definitely_transfers(lhs)
+					|| match (*op, static_boolean(lhs)) {
+						(BinaryOperator::BoolAnd, Some(true)) | (BinaryOperator::BoolOr, Some(false)) => {
+							self.definitely_transfers(rhs)
+						}
+						_ => false,
+					}
+			}
 			ExprKind::If {
 				condition,
 				then,
 				otherwise,
 			} => {
 				self.definitely_transfers(condition)
-					|| otherwise.as_deref().is_some_and(|otherwise| {
-						self.definitely_transfers(then) && self.definitely_transfers(otherwise)
-					})
+					|| match static_boolean(condition) {
+						Some(true) => self.definitely_transfers(then),
+						Some(false) => otherwise
+							.as_deref()
+							.is_some_and(|otherwise| self.definitely_transfers(otherwise)),
+						None => otherwise.as_deref().is_some_and(|otherwise| {
+							self.definitely_transfers(then) && self.definitely_transfers(otherwise)
+						}),
+					}
 			}
 			ExprKind::Match { value, arms } => {
 				self.definitely_transfers(value)

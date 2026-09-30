@@ -38,6 +38,7 @@ mod range_analysis;
 mod runtime;
 mod solve;
 mod stable_lowering;
+mod static_value;
 mod unify;
 
 pub use analysis::{

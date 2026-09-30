@@ -442,7 +442,7 @@ fn entry_reachability_eliminates_unused_code_and_its_ambient_prelude_demands() {
 	session.set_source(
 		project.clone(),
 		main.clone(),
-		"func used(): int = { break 1 987654321 }\nfunc unused(): Option<int> = Some(value = 2)\npublic func main(): void = { let value = used() }"
+		"func used(): int = { false && (555666777 == 555666777) if (1 == 0) { 123456789 } if (1 + 1 == 2) break 1 987654321 }\nfunc unused(): Option<int> = Some(value = 2)\npublic func main(): void = { let value = used() }"
 			.into(),
 		SourceVersion(1),
 	);
@@ -496,6 +496,14 @@ fn entry_reachability_eliminates_unused_code_and_its_ambient_prelude_demands() {
 	assert!(
 		!source.contains("2n"),
 		"unused function was emitted: {source}"
+	);
+	assert!(
+		!source.contains("555666777n"),
+		"statically dead short-circuit operand was emitted: {source}"
+	);
+	assert!(
+		!source.contains("123456789n"),
+		"statically dead branch was emitted: {source}"
 	);
 	assert!(
 		!source.contains("987654321n"),
