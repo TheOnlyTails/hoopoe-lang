@@ -3,7 +3,7 @@
 use std::sync::{Arc, Mutex};
 
 use hoopoe_compiler::project::{
-	CompilerSession, ModulePath, ProjectId, SemanticQueryEvent, SourceVersion,
+	BuildProfile, CompilerSession, ModulePath, ProjectId, SemanticQueryEvent, SourceVersion,
 };
 use hoopoe_sema::{
 	DeclarationCategory, DeclarationKey, DefinitionId, EntryMode, ModuleIdentity, ModuleOrigin,
@@ -431,6 +431,88 @@ fn stable_emission_links_demanded_ambient_option_runtime() {
 		String::from_utf8_lossy(&output.stderr)
 	);
 	assert_eq!(String::from_utf8_lossy(&output.stdout), "42n\n");
+}
+
+#[test]
+fn entry_reachability_eliminates_unused_code_and_its_ambient_prelude_demands() {
+	let mut session = CompilerSession::new();
+	session.set_build_profile(BuildProfile::Release);
+	let project = ProjectId::new("dead-code-elimination");
+	let main = ModulePath::new("main").unwrap();
+	session.set_source(
+		project.clone(),
+		main.clone(),
+		"func used(): int = { false && (555666777 == 555666777) if (1 == 0) { 123456789 } if (1 + 1 == 2) break 1 987654321 }\nfunc unused(): Option<int> = Some(value = 2)\npublic func main(): void = { let value = used() }"
+			.into(),
+		SourceVersion(1),
+	);
+
+	let diagnostics = session.check_project(project.clone(), main.clone(), EntryMode::Entry);
+	assert!(diagnostics.iter().any(|diagnostic| {
+		diagnostic.diag.code == "unused" && diagnostic.diag.message.contains("`unused`")
+	}));
+	assert!(
+		diagnostics
+			.iter()
+			.any(|diagnostic| diagnostic.diag.message == "unreachable code")
+	);
+	let lowered = session
+		.lower_interface_module_for_test(
+			project.clone(),
+			main.clone(),
+			main.clone(),
+			EntryMode::Entry,
+		)
+		.expect("reachable entry code lowers");
+	assert!(lowered.fragments.iter().any(|fragment| {
+		matches!(
+			&fragment.definition().key,
+			DeclarationKey::TopLevel { name, .. } if name == "used"
+		)
+	}));
+	assert!(lowered.eliminated_definitions.iter().any(|definition| {
+		matches!(
+			&definition.key,
+			DeclarationKey::TopLevel { name, .. } if name == "unused"
+		)
+	}));
+	assert!(
+		lowered.virtual_runtime.iter().all(|fragment| {
+			!matches!(
+				&fragment.definition.key,
+				DeclarationKey::TopLevel { name, .. } if name == "Option"
+			)
+		}),
+		"unused code must not retain its ambient Option runtime"
+	);
+	let emitted = session
+		.emit_interface_project_for_test(project, main, EntryMode::Entry)
+		.expect("reachable entry code emits");
+	let source = &emitted.module_sources["main"];
+	assert!(
+		source.contains("1n"),
+		"used function must be emitted: {source}"
+	);
+	assert!(
+		!source.contains("2n"),
+		"unused function was emitted: {source}"
+	);
+	assert!(
+		!source.contains("555666777n"),
+		"statically dead short-circuit operand was emitted: {source}"
+	);
+	assert!(
+		!source.contains("123456789n"),
+		"statically dead branch was emitted: {source}"
+	);
+	assert!(
+		!source.contains("987654321n"),
+		"unreachable code was emitted: {source}"
+	);
+	assert!(
+		!source.contains("Option"),
+		"unused prelude was emitted: {source}"
+	);
 }
 
 #[test]

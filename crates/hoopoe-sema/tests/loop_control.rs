@@ -1,14 +1,20 @@
+use hoopoe_diagnostics::Diagnostic;
 use hoopoe_sema::check_module;
 use hoopoe_syntax::parse_module;
 
-fn messages(source: &str) -> Vec<String> {
+fn diagnostics(source: &str) -> (String, Vec<Diagnostic>) {
 	let source = format!(
 		"enum Option<T> {{ Some(value: T), None }}\nenum Result<T, E> {{ Ok(value: T), Error(error: E) }}\n{source}"
 	);
 	let parsed = parse_module(&source, "test");
 	assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-	check_module(&parsed.tree)
-		.diags
+	let diagnostics = check_module(&parsed.tree).diags;
+	(source, diagnostics)
+}
+
+fn messages(source: &str) -> Vec<String> {
+	diagnostics(source)
+		.1
 		.into_iter()
 		.map(|diagnostic| diagnostic.message.to_string())
 		.collect()
@@ -54,14 +60,122 @@ fn question_propagation_checks_family_target_and_result_error() {
 #[test]
 fn every_explicit_block_is_a_break_target() {
 	for source in [
-		"func direct(): int = { break 1 2 }",
-		"func nested(): int = { let value = { break 1 2 } value }",
-		"func branch(flag: boolean): int = if (flag) { break 1 2 } else { 3 }",
+		"func direct(): int = { break 1 }",
+		"func nested(): int = { let value = { break 1 } value }",
+		"func branch(flag: boolean): int = if (flag) { break 1 } else { 3 }",
 		"func expression_body(): int = break 1",
 	] {
 		let found = messages(source);
 		assert!(found.is_empty(), "{source}: {found:?}");
 	}
+}
+
+#[test]
+fn statements_after_a_guaranteed_transfer_are_unreachable() {
+	let found = messages("func value(): int = { break 1 let discarded = 2 discarded }");
+	assert_eq!(
+		found
+			.iter()
+			.filter(|message| message.as_str() == "unreachable code")
+			.count(),
+		2,
+		"{found:?}"
+	);
+	assert!(
+		messages("func value(flag: boolean): int = { if (flag) { break 1 } 2 }").is_empty(),
+		"a transfer in only one branch must not make following code unreachable"
+	);
+}
+
+#[test]
+fn unreachable_warnings_label_every_expression_that_exits_before_the_dead_code() {
+	let (source, found) = diagnostics(
+		"func value(input: boolean): int = { match (input) { true -> break 1, false -> break 2 } 3 }",
+	);
+	let warning = found
+		.iter()
+		.find(|diagnostic| diagnostic.message == "unreachable code")
+		.expect("expected an unreachable-code warning");
+	let labeled = warning
+		.labels
+		.iter()
+		.map(|label| &source[label.span.start..label.span.end])
+		.collect::<Vec<_>>();
+	assert_eq!(labeled, ["break 1", "break 2"]);
+	assert_eq!(
+		warning.help.as_deref(),
+		Some("remove this code or change the labeled expression")
+	);
+
+	let (source, found) = diagnostics("func value(): int = if (false) 7 else 9");
+	let warning = found
+		.iter()
+		.find(|diagnostic| diagnostic.message == "unreachable code")
+		.expect("expected an unreachable-code warning");
+	assert_eq!(warning.labels.len(), 1);
+	let cause = &source[warning.labels[0].span.start..warning.labels[0].span.end];
+	assert!(cause.contains("false"), "unexpected cause span: {cause:?}");
+}
+
+#[test]
+fn statically_known_conditions_mark_dead_branches_and_following_statements() {
+	for source in [
+		"func value(): int = if (false) 7 else 9",
+		"func value(): int = if (1 == 0) 7 else 9",
+		"func value(): int = if (1 + 2 * 3 < 8) 7 else 9",
+		"func value(): int = if (1u < 0u) 7 else 9",
+		"func value(): int = if (1.5 > 2.0) 7 else 9",
+		"func value(): int = if ('a' == 'b') 7 else 9",
+		"func value(): int = if ((1 | 2) == 3) 7 else 9",
+		"func value(): int = if ((8 >> 2) == 2) 7 else 9",
+		"func value(): int = if ((1 / 2) == 0.5) 7 else 9",
+		"func value(): int = if (!(3 >= 3)) 7 else 9",
+	] {
+		let found = messages(source);
+		assert_eq!(
+			found
+				.iter()
+				.filter(|message| message.as_str() == "unreachable code")
+				.count(),
+			1,
+			"{source}: {found:?}"
+		);
+	}
+	for source in [
+		"func value(): boolean = false && (1 == 1)",
+		"func value(): boolean = true || (1 == 1)",
+	] {
+		let found = messages(source);
+		assert_eq!(
+			found
+				.iter()
+				.filter(|message| message.as_str() == "unreachable code")
+				.count(),
+			1,
+			"{source}: {found:?}"
+		);
+	}
+
+	let found = messages("func value(): int = { if (1 + 1 == 2) break 1 2 }");
+	assert_eq!(
+		found
+			.iter()
+			.filter(|message| message.as_str() == "unreachable code")
+			.count(),
+		1,
+		"{found:?}"
+	);
+	assert!(
+		messages("func value(flag: boolean): int = if (flag) 7 else 9").is_empty(),
+		"dynamic conditions must keep both branches reachable"
+	);
+	let overflow = messages("func value(): int = if (9223372036854775807 + 1 == 0) 7 else 9");
+	assert!(
+		overflow
+			.iter()
+			.all(|message| message.as_str() != "unreachable code"),
+		"overflowing arithmetic must not be folded: {overflow:?}"
+	);
 }
 
 #[test]
@@ -302,7 +416,7 @@ fn loop_result_contracts_type_check() {
 	for source in [
 		"func no_break(): void = for (_ in #[]) {}",
 		"func bare(): Option<#()> = for (_ in #[]) { break }",
-		"func valued(): Option<int> = for (_ in #[]) { if (false) { break 1 } break 2 }",
+		"func valued(flag: boolean): Option<int> = for (_ in #[]) { if (flag) { break 1 } break 2 }",
 		"func labeled_loop(): Option<int> = for@outer (_ in #[#()]) { break 1 }",
 		"func labeled_for(): Option<int> = for@outer (_ in #[1]) { break 1 }",
 		"func nested_unlabeled(): void = for@outer (_ in #[]) { for (_ in #[#()]) { break 1 } }",
@@ -312,7 +426,7 @@ fn loop_result_contracts_type_check() {
 		"func nested_break(): Option<int> = for (_ in #[#()]) { break (break 1) }",
 		"func all_arms(value: boolean): Option<int> = for (_ in #[#()]) { 1 + match (value) { true -> break 1, false -> break 2 } }",
 		"func guarded_arm(value: int): Option<int> = for (_ in #[#()]) { 1 + match (value) { 0 if true -> break 1, _ -> break 2 } }",
-		"func short_circuit(): Option<int> = for (_ in #[#()]) { false && break 1\ntrue || break 2\ntrue && break 3 }",
+		"func short_circuit(a: boolean, b: boolean): Option<int> = for (_ in #[#()]) { a && break 1\nb || break 2\ntrue && break 3 }",
 		"func prefix(): Option<int> = for (_ in #[#()]) { -(break 1) }",
 		"func callee(): Option<int> = for (_ in #[#()]) { (break 1)() }",
 		"func member(): Option<int> = for (_ in #[#()]) { (break 1).field }",

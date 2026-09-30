@@ -23,6 +23,7 @@ use hoopoe_hir::hir::{
 };
 use num_bigint::BigInt;
 
+use crate::static_value::StaticValue;
 use crate::{
 	DefinitionId, EnumShell, ExportedDefinition, ExportedImpl, ExternalAbi, InterfaceType,
 	MemberShape, ModuleIdentity, RuntimeDefinition, StableExpr, StableExprKind, StableListItem,
@@ -30,6 +31,26 @@ use crate::{
 	StablePatternKind, StablePatternRange, StableRange, StableStatement, StableStringPart,
 	StableStringPatternPart, StableStructPatternField, StructShell,
 };
+
+fn static_value(expr: &StableExpr) -> Option<StaticValue> {
+	match &expr.kind {
+		StableExprKind::Int(value) => Some(StaticValue::Int((*value).into())),
+		StableExprKind::UInt(value) => Some(StaticValue::UInt((*value).into())),
+		StableExprKind::Float(value) => Some(StaticValue::Float(value.into_inner())),
+		StableExprKind::Char(value) => Some(StaticValue::Char(*value)),
+		StableExprKind::Boolean(value) => Some(StaticValue::Boolean(*value)),
+		StableExprKind::Grouped(value) => static_value(value),
+		StableExprKind::PrefixOp { op, value } => StaticValue::prefix(*op, static_value(value)?),
+		StableExprKind::BinaryOp { lhs, op, rhs } => {
+			StaticValue::binary(*op, static_value(lhs)?, static_value(rhs)?)
+		}
+		_ => None,
+	}
+}
+
+fn static_boolean(expr: &StableExpr) -> Option<bool> {
+	static_value(expr)?.boolean()
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RuntimeDefinitionLookupError {
@@ -224,6 +245,7 @@ pub struct StableHirModule {
 	pub module: ModuleIdentity,
 	pub hir: HirModule,
 	pub own_definitions: Vec<DefinitionId>,
+	pub eliminated_definitions: Vec<DefinitionId>,
 	pub fragments: Vec<LoweredRuntimeDefinition>,
 	pub imports: Vec<DefinitionId>,
 	pub virtual_runtime: Vec<VirtualRuntimeFragment>,
@@ -2975,36 +2997,42 @@ impl<C: StableLoweringContext> StableBodyLowerer<'_, C> {
 		if self.annotations.anonymous_closure_arity(node).is_some() {
 			return false;
 		}
-		if self
-			.annotations
-			.type_of(node)
-			.is_some_and(|ty| matches!(peel_mut(ty), InterfaceType::Never))
-		{
-			return true;
-		}
 		match &expr.kind {
 			StableExprKind::Break { .. } | StableExprKind::Continue { .. } => true,
 			StableExprKind::Grouped(value) => self.definitely_transfers(value),
-			StableExprKind::Block { body, .. } => body.iter().any(|statement| {
-				self.definitely_transfers(match statement {
-					StableStatement::Let { value, .. } | StableStatement::Expr(value) => value,
-				})
-			}),
+			StableExprKind::BinaryOp { lhs, op, rhs } => {
+				self.definitely_transfers(lhs)
+					|| match (*op, static_boolean(lhs)) {
+						(BinaryOperator::BoolAnd, Some(true)) | (BinaryOperator::BoolOr, Some(false)) => {
+							self.definitely_transfers(rhs)
+						}
+						_ => false,
+					}
+			}
 			StableExprKind::If {
 				condition,
 				then,
 				otherwise,
 			} => {
 				self.definitely_transfers(condition)
-					|| otherwise.as_deref().is_some_and(|otherwise| {
-						self.definitely_transfers(then) && self.definitely_transfers(otherwise)
-					})
+					|| match static_boolean(condition) {
+						Some(true) => self.definitely_transfers(then),
+						Some(false) => otherwise
+							.as_deref()
+							.is_some_and(|otherwise| self.definitely_transfers(otherwise)),
+						None => otherwise.as_deref().is_some_and(|otherwise| {
+							self.definitely_transfers(then) && self.definitely_transfers(otherwise)
+						}),
+					}
 			}
 			StableExprKind::Match { value, arms } => {
 				self.definitely_transfers(value)
 					|| (!arms.is_empty() && arms.iter().all(|arm| self.definitely_transfers(&arm.body)))
 			}
-			_ => false,
+			_ => self
+				.annotations
+				.type_of(node)
+				.is_some_and(|ty| matches!(peel_mut(ty), InterfaceType::Never)),
 		}
 	}
 	fn builtin_result(&self, expr: &StableExpr) -> Result<BuiltinResult, StableLoweringError> {
@@ -4041,6 +4069,12 @@ impl<C: StableLoweringContext> StableBodyLowerer<'_, C> {
 				}
 			}
 			StableExprKind::BinaryOp { lhs, op, rhs } => {
+				if matches!(
+					(*op, static_boolean(lhs)),
+					(BinaryOperator::BoolAnd, Some(false)) | (BinaryOperator::BoolOr, Some(true))
+				) {
+					return self.lower(lhs);
+				}
 				if self.definitely_transfers(lhs) {
 					return self.lower(lhs);
 				}
@@ -4175,13 +4209,25 @@ impl<C: StableLoweringContext> StableBodyLowerer<'_, C> {
 				condition,
 				then,
 				otherwise,
-			} => HirExpr::If {
-				cond: Box::new(self.lower(condition)?),
-				then: Box::new(self.lower(then)?),
-				otherwise: otherwise
-					.as_ref()
-					.map(|value| self.lower(value).map(Box::new))
-					.transpose()?,
+			} => match static_boolean(condition) {
+				Some(true) => self.lower(then)?,
+				Some(false) => otherwise.as_deref().map_or_else(
+					|| {
+						Ok(HirExpr::Block {
+							stmts: vec![],
+							tail: None,
+						})
+					},
+					|otherwise| self.lower(otherwise),
+				)?,
+				None => HirExpr::If {
+					cond: Box::new(self.lower(condition)?),
+					then: Box::new(self.lower(then)?),
+					otherwise: otherwise
+						.as_ref()
+						.map(|value| self.lower(value).map(Box::new))
+						.transpose()?,
+				},
 			},
 			StableExprKind::Closure { params, body, .. } => self.with_scope(|| {
 				let params = params
@@ -7077,6 +7123,9 @@ impl<C: StableLoweringContext> StableBodyLowerer<'_, C> {
 		let mut tail = None;
 		for (index, statement) in body.iter().enumerate() {
 			let last = index + 1 == body.len();
+			let transfers = self.definitely_transfers(match statement {
+				StableStatement::Let { value, .. } | StableStatement::Expr(value) => value,
+			});
 			match statement {
 				StableStatement::Let {
 					pattern,
@@ -7123,6 +7172,9 @@ impl<C: StableLoweringContext> StableBodyLowerer<'_, C> {
 					tail = Some(Box::new(lowered));
 				}
 				StableStatement::Expr(expr) => stmts.push(HirStmt::Expr(self.lower(expr)?)),
+			}
+			if transfers {
+				break;
 			}
 		}
 		Ok(HirExpr::Block { stmts, tail })

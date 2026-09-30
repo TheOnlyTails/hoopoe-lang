@@ -31,6 +31,7 @@ use crate::errors::TypeError;
 use crate::ids::{DefId, ParamIdx};
 use crate::lower::build_param_scope;
 use crate::solve::{MethodResolution, MethodSource};
+use crate::static_value::StaticValue;
 use crate::ty::{GenericArgs, Ty, TyKind};
 
 enum OptionalContainer {
@@ -42,6 +43,26 @@ enum IntegerConstant {
 	Value(BigInt),
 	Invalid(&'static str),
 	NotConstant,
+}
+
+fn static_value(expr: &Expr) -> Option<StaticValue> {
+	match &expr.kind {
+		ExprKind::Int(value) => Some(StaticValue::Int(value.0.into())),
+		ExprKind::UInt(value) => Some(StaticValue::UInt(value.0.into())),
+		ExprKind::Float(value) => Some(StaticValue::Float(value.0.into_inner())),
+		ExprKind::Char(value) => Some(StaticValue::Char(value.0)),
+		ExprKind::Boolean(value) => Some(StaticValue::Boolean(value.0)),
+		ExprKind::Grouped(value) => static_value(value),
+		ExprKind::PrefixOp { op, value } => StaticValue::prefix(*op, static_value(value)?),
+		ExprKind::BinaryOp { lhs, op, rhs } => {
+			StaticValue::binary(*op, static_value(lhs)?, static_value(rhs)?)
+		}
+		_ => None,
+	}
+}
+
+fn static_boolean(expr: &Expr) -> Option<bool> {
+	static_value(expr)?.boolean()
 }
 
 /// Whether a resolved method is owned by canonical compiler or importable-stdlib
@@ -535,6 +556,7 @@ impl<'m> Checker<'m> {
 			} => {
 				let boolean = self.interner.boolean();
 				self.check(condition, boolean);
+				self.warn_static_if(condition, then, otherwise.as_deref());
 				self.check(then, expected);
 				match otherwise {
 					Some(else_) => self.check(else_, expected),
@@ -1503,6 +1525,20 @@ impl<'m> Checker<'m> {
 			} => {
 				let boolean = self.interner.boolean();
 				self.check(condition, boolean);
+				self.warn_static_if(condition, then, otherwise.as_deref());
+				if let Some(value) = static_boolean(condition) {
+					let then_ty = self.infer(then);
+					return match (value, otherwise) {
+						(true, _) => {
+							if let Some(otherwise) = otherwise {
+								self.infer(otherwise);
+							}
+							then_ty
+						}
+						(false, Some(otherwise)) => self.infer(otherwise),
+						(false, None) => self.interner.void(),
+					};
+				}
 				match otherwise {
 					Some(else_) => {
 						let then_ty = self.infer(then);
@@ -4007,6 +4043,17 @@ impl<'m> Checker<'m> {
 				}
 			};
 		}
+		if matches!(
+			(op, static_boolean(lhs)),
+			(BoolAnd, Some(false)) | (BoolOr, Some(true))
+		) {
+			self.emit(
+				rhs.span,
+				TypeError::UnreachableCode {
+					causes: vec![lhs.span],
+				},
+			);
+		}
 
 		let l = self.infer(lhs);
 		let r = self.infer(rhs);
@@ -4814,28 +4861,122 @@ impl<'m> Checker<'m> {
 	}
 
 	// ── Blocks ───────────────────────────────────────────────────────────────
+	fn warn_static_if(&mut self, condition: &Expr, then: &Expr, otherwise: Option<&Expr>) {
+		match static_boolean(condition) {
+			Some(false) => self.emit(
+				then.span,
+				TypeError::UnreachableCode {
+					causes: vec![condition.span],
+				},
+			),
+			Some(true) => {
+				if let Some(otherwise) = otherwise {
+					self.emit(
+						otherwise.span,
+						TypeError::UnreachableCode {
+							causes: vec![condition.span],
+						},
+					);
+				}
+			}
+			None => {}
+		}
+	}
+
+	fn exit_spans(&self, expr: &Expr) -> Option<Vec<Span>> {
+		if self.annotations.anon_boundary_arity(expr.id).is_some() {
+			return None;
+		}
+		match &expr.kind {
+			ExprKind::Break { .. } | ExprKind::Continue { .. } => Some(vec![expr.span]),
+			ExprKind::Grouped(value) => self.exit_spans(value),
+			ExprKind::BinaryOp { lhs, op, rhs } => {
+				self
+					.exit_spans(lhs)
+					.or_else(|| match (*op, static_boolean(lhs)) {
+						(BinaryOperator::BoolAnd, Some(true)) | (BinaryOperator::BoolOr, Some(false)) => {
+							self.exit_spans(rhs)
+						}
+						_ => None,
+					})
+			}
+			ExprKind::If {
+				condition,
+				then,
+				otherwise,
+			} => self
+				.exit_spans(condition)
+				.or_else(|| match static_boolean(condition) {
+					Some(true) => self.exit_spans(then),
+					Some(false) => otherwise
+						.as_deref()
+						.and_then(|otherwise| self.exit_spans(otherwise)),
+					None => {
+						let mut causes = self.exit_spans(then)?;
+						causes.extend(self.exit_spans(otherwise.as_deref()?)?);
+						Some(causes)
+					}
+				}),
+			ExprKind::Match { value, arms } => self.exit_spans(value).or_else(|| {
+				if arms.is_empty() {
+					return None;
+				}
+				arms.iter().try_fold(Vec::new(), |mut causes, arm| {
+					causes.extend(self.exit_spans(&arm.body)?);
+					Some(causes)
+				})
+			}),
+			_ => self
+				.annotations
+				.get(expr.id)
+				.is_some_and(|info| matches!(self.interner.kind(info.ty), TyKind::Never))
+				.then(|| vec![expr.span]),
+		}
+	}
+
 	fn infer_block(&mut self, body: &[Spanned<Statement>], expected: Option<Ty>) -> Ty {
 		self.push_scope();
 		let void = self.interner.void();
 		let mut result = void;
+		let mut exit_spans: Option<Vec<Span>> = None;
 		let last = body.len().saturating_sub(1);
 		for (i, stmt) in body.iter().enumerate() {
+			if let Some(causes) = &exit_spans {
+				self.emit(
+					stmt.1,
+					TypeError::UnreachableCode {
+						causes: causes.clone(),
+					},
+				);
+			}
 			match &stmt.0 {
 				Statement::Let { meta, value } => {
 					self.check_let_statement(meta, value);
-					result = void;
+					let ty = self.annotations.get(value.id).map_or(void, |info| info.ty);
+					if exit_spans.is_none() {
+						exit_spans = self.exit_spans(value);
+						result = if exit_spans.is_none() { void } else { ty };
+					}
 				}
 				Statement::Expr(expr) => {
-					if i == last {
-						result = match expected {
+					let ty = if i == last {
+						match expected {
 							Some(exp) => {
 								self.check(expr, exp);
 								exp
 							}
 							None => self.infer(expr),
-						};
+						}
 					} else {
-						self.infer(expr);
+						self.infer(expr)
+					};
+					if exit_spans.is_none() {
+						exit_spans = self.exit_spans(expr);
+						result = if i == last || exit_spans.is_some() {
+							ty
+						} else {
+							void
+						};
 					}
 				}
 			}

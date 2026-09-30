@@ -183,6 +183,42 @@ fn echo_release_lint_honors_allow_warn_deny_and_exact_root_ownership() {
 }
 
 #[test]
+fn unused_release_lint_honors_allow_warn_and_deny() {
+	let mut session = CompilerSession::new();
+	session.set_build_profile(BuildProfile::Release);
+	let project = ProjectId::new("unused-policy");
+	let main = ModulePath::new("main").unwrap();
+	session.set_source(
+		project.clone(),
+		main.clone(),
+		"func unused(): int = 1\npublic func main(): void = {}".into(),
+		SourceVersion(1),
+	);
+
+	let warned = session.check_project(project.clone(), main.clone(), EntryMode::Entry);
+	assert_eq!(
+		warned
+			.iter()
+			.filter(|diagnostic| diagnostic.diag.code == "unused")
+			.count(),
+		1
+	);
+	assert!(warned.iter().all(|diagnostic| !diagnostic.diag.is_error()));
+
+	session.set_project_lints(project.clone(), [("unused".into(), LintLevel::Allow)]);
+	assert!(
+		session
+			.check_project(project.clone(), main.clone(), EntryMode::Entry)
+			.is_empty()
+	);
+
+	session.set_project_lints(project.clone(), [("unused".into(), LintLevel::Deny)]);
+	let denied = session.check_project(project, main, EntryMode::Entry);
+	assert_eq!(denied.len(), 1);
+	assert!(denied[0].diag.is_error());
+}
+
+#[test]
 fn managed_resource_warnings_honor_allow_and_deny() {
 	let mut session = CompilerSession::new();
 	let project = ProjectId::new("managed-policy");
